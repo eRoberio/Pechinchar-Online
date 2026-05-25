@@ -1,35 +1,3 @@
-// import 'package:firebase_core/firebase_core.dart';
-// import 'package:flutter/foundation.dart' show kIsWeb;
-// import 'dart:io' show Platform;
-// import 'package:flutter/material.dart';
-// import 'package:flutter_modular/flutter_modular.dart';
-// import 'package:google_mobile_ads/google_mobile_ads.dart';
-// import 'AppModule.dart';
-// import 'AppWidget.dart';
-
-// Future<void> main() async {
-//   WidgetsFlutterBinding.ensureInitialized();
-//   if (kIsWeb) {
-//     await Firebase.initializeApp(
-//       options: const FirebaseOptions(
-//         apiKey: "AIzaSyDVKurHgFwqXlfRc4Zp4OfFs_BfZmuJa3o", // ok
-//         authDomain: "COLOQUE_AQUI_O_AUTH_DOMAIN_DO_WEB", // pegar no console Firebase Web
-//         projectId: "pechinchar-f38be", // ok
-//         storageBucket: "pechinchar-f38be.appspot.com", // ok
-//         messagingSenderId: "10417094027", // ok
-//         appId: "COLOQUE_AQUI_O_APP_ID_WEB", // pegar no console Firebase Web
-//         measurementId: "COLOQUE_AQUI_O_MEASUREMENT_ID", // pegar no console Firebase Web
-//       ),
-//     );
-//   } else {
-//     await Firebase.initializeApp();
-//   }
-//   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-//     await MobileAds.instance.initialize();
-//   }
-//   runApp(ModularApp(module: AppModule(), child: AppWidget()));
-// }
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' show Platform;

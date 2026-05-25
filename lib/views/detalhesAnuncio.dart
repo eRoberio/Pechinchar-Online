@@ -1,13 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:pechinchar_online/models/Anuncio.dart';
-// Certifique-se de ter o pacote url_launcher no pubspec.yaml para os botões de contato
-// import 'package:url_launcher/url_launcher.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DetalhesAnuncio extends StatefulWidget {
   final Anuncio anuncio;
-  final bool
-      exibirBotoesContato; // Usado para esconder contato se for o próprio anúncio
+  final bool exibirBotoesContato;
 
   const DetalhesAnuncio(this.anuncio, this.exibirBotoesContato, {Key? key})
       : super(key: key);
@@ -21,24 +19,69 @@ class _DetalhesAnuncioState extends State<DetalhesAnuncio> {
   final Color corPrincipalAzul = const Color(0xFF0B1C4B);
   final Color corDestaqueLaranja = const Color(0xFFFF8C00);
 
-  // Método placeholder para o url_launcher
-  void _abrirWhatsApp() async {
-    // String url = "whatsapp://send?phone=+55${widget.anuncio.telefone}&text=Olá, vi seu anúncio: ${widget.anuncio.titulo}";
-    // if (await canLaunchUrl(Uri.parse(url))) { await launchUrl(Uri.parse(url)); }
-    print("Abrir WhatsApp: ${widget.anuncio.telefone}");
+  // Remove espaços, traços e parênteses do telefone
+  String _limparNumeroTelefone(String telefone) {
+    return telefone.replaceAll(RegExp(r'\D'), '');
   }
 
-  void _ligarTelefone() async {
-    // String url = "tel:${widget.anuncio.telefone}";
-    // if (await canLaunchUrl(Uri.parse(url))) { await launchUrl(Uri.parse(url)); }
-    print("Ligar para: ${widget.anuncio.telefone}");
+  // Lógica moderna do url_launcher para o WhatsApp
+  Future<void> _abrirWhatsApp() async {
+    String numeroLimpo = _limparNumeroTelefone(widget.anuncio.telefone);
+    String mensagemPadrao = Uri.encodeComponent(
+        "Olá, ${widget.anuncio.nome}! Vi seu anúncio '${widget.anuncio.titulo}' no Pechinchar Online e tenho interesse.");
+
+    // Tenta abrir o App nativo (whatsapp://)
+    final Uri whatsappApp =
+        Uri.parse("whatsapp://send?phone=+55$numeroLimpo&text=$mensagemPadrao");
+    // Fallback seguro para navegadores web (wa.me)
+    final Uri whatsappWeb =
+        Uri.parse("https://wa.me/55$numeroLimpo?text=$mensagemPadrao");
+
+    try {
+      if (await canLaunchUrl(whatsappApp)) {
+        await launchUrl(whatsappApp);
+      } else if (await canLaunchUrl(whatsappWeb)) {
+        await launchUrl(whatsappWeb, mode: LaunchMode.externalApplication);
+      } else {
+        throw "Não suportado";
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+              "Não foi possível abrir o WhatsApp. Verifique se o app está instalado."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  // Lógica moderna do url_launcher para o discador nativo
+  Future<void> _ligarTelefone() async {
+    String numeroLimpo = _limparNumeroTelefone(widget.anuncio.telefone);
+    final Uri telUri = Uri.parse("tel:$numeroLimpo");
+
+    try {
+      if (await canLaunchUrl(telUri)) {
+        await launchUrl(telUri);
+      } else {
+        throw "Não suportado";
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content:
+              Text("O seu dispositivo não suporta realizar chamadas por aqui."),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors
-          .grey[50], // Fundo levemente cinza para destacar os cards brancos
+      backgroundColor: Colors.grey[50],
       body: CustomScrollView(
         slivers: <Widget>[
           // 1. App Bar Expansível com Carrossel de Imagens
@@ -70,6 +113,44 @@ class _DetalhesAnuncioState extends State<DetalhesAnuncio> {
                       );
                     },
                   ),
+
+                  // TAG DE DESTAQUE DINÂMICA
+                  if (widget.anuncio.impulsionar == "1")
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: SafeArea(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: corDestaqueLaranja,
+                            borderRadius: BorderRadius.circular(20),
+                            boxShadow: const [
+                              BoxShadow(
+                                  color: Colors.black26,
+                                  blurRadius: 4,
+                                  offset: Offset(0, 2))
+                            ],
+                          ),
+                          child: const Row(
+                            children: [
+                              Icon(Icons.star, color: Colors.white, size: 14),
+                              SizedBox(width: 4),
+                              Text(
+                                "DESTAQUE",
+                                style: TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 12,
+                                    letterSpacing: 1),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+
                   // Indicador de Páginas (Bolinhas)
                   Positioned(
                     bottom: 16,
@@ -157,6 +238,39 @@ class _DetalhesAnuncioState extends State<DetalhesAnuncio> {
                               TextStyle(fontSize: 14, color: Colors.grey[700]),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Box informando o anunciante
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[300]!)),
+                      child: Row(
+                        children: [
+                          CircleAvatar(
+                            backgroundColor: corPrincipalAzul.withOpacity(0.1),
+                            child: Icon(Icons.person, color: corPrincipalAzul),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text("Anunciante",
+                                    style: TextStyle(
+                                        fontSize: 12, color: Colors.grey)),
+                                Text(widget.anuncio.nome,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16)),
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
                     ),
                   ],
                 ),

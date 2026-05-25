@@ -532,120 +532,132 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                         if (lista.length != 0)
                           Expanded(
                             child: ListView.builder(
-                                shrinkWrap: true,
-                                padding: const EdgeInsets.all(8),
-                                itemCount: lista.length,
-                                itemBuilder: (BuildContext context, int index) {
-                                  return GestureDetector(
-                                    onTap: () {
-                                      Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                              builder: (context) =>
-                                                  DetalhesAnuncio(
-                                                      lista[index], true)));
-                                    },
-                                    child: Card(
-                                      margin: EdgeInsets.only(
-                                          top: 4, bottom: 4, right: 8, left: 8),
-                                      child: Padding(
-                                        padding: EdgeInsets.all(12),
-                                        child: Row(
-                                          children: <Widget>[
-                                            SizedBox(
-                                              width: 120,
-                                              height: 120,
-                                              child: lista[index]
-                                                      .fotos
-                                                      .isNotEmpty
-                                                  ? CachedNetworkImage(
-                                                      imageUrl:
-                                                          lista[index].fotos[0],
-                                                      imageBuilder: (context,
-                                                              imageProvider) =>
-                                                          Container(
-                                                        decoration:
-                                                            BoxDecoration(
-                                                          image:
-                                                              DecorationImage(
-                                                            image:
-                                                                imageProvider,
-                                                            fit: BoxFit.contain,
-                                                          ),
-                                                        ),
-                                                      ),
-                                                      placeholder:
-                                                          (context, url) =>
-                                                              Transform.scale(
-                                                        scale: 0.3,
-                                                        child:
-                                                            CircularProgressIndicator(
-                                                          color:
-                                                              corDestaqueLaranja, // Cor do loading alterada para laranja
-                                                        ),
-                                                      ),
-                                                      errorWidget: (context,
-                                                              url, error) =>
-                                                          const Icon(
-                                                              Icons.error),
-                                                    )
-                                                  : Container(
-                                                      color: Colors.grey[200],
-                                                      child: Icon(
-                                                        Icons.image,
-                                                        color: Colors.grey[500],
-                                                      ),
-                                                    ),
-                                            ),
-                                            Expanded(
-                                              child: Padding(
-                                                padding: EdgeInsets.symmetric(
-                                                    horizontal: 20,
-                                                    vertical: 8),
-                                                child: Column(
-                                                  crossAxisAlignment:
-                                                      CrossAxisAlignment.start,
-                                                  children: <Widget>[
-                                                    Column(
-                                                      crossAxisAlignment:
-                                                          CrossAxisAlignment
-                                                              .start,
-                                                      children: [
-                                                        Text(
-                                                          lista[index].titulo,
-                                                          style: TextStyle(
-                                                              fontSize: 18,
-                                                              fontWeight:
-                                                                  FontWeight
-                                                                      .bold),
-                                                        ),
-                                                        Text(
-                                                          "R\$ ${lista[index].preco} ",
-                                                          style: TextStyle(
-                                                            fontSize: 18,
-                                                          ),
-                                                        ),
-                                                        Padding(
-                                                            padding:
-                                                                EdgeInsets.only(
-                                                                    top: 16)),
-                                                        Text(
-                                                          lista[index].data,
-                                                        ),
-                                                        Text(lista[index]
-                                                            .horario),
-                                                      ],
-                                                    ),
-                                                  ],
-                                                ),
+                              padding: const EdgeInsets.all(8),
+                              itemCount: lista.length,
+                              itemBuilder: (BuildContext context, int index) {
+                                Anuncio anuncio = lista[index];
+                                return GestureDetector(
+                                  onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                          builder: (context) =>
+                                              DetalhesAnuncio(anuncio, true))),
+                                  child: Card(
+                                    margin: const EdgeInsets.symmetric(
+                                        vertical: 6, horizontal: 8),
+                                    shape: RoundedRectangleBorder(
+                                        borderRadius:
+                                            BorderRadius.circular(12)),
+                                    elevation: 2,
+                                    child: Row(
+                                      children: <Widget>[
+                                        // IMAGEM COM SELO DE DESTAQUE
+                                        Stack(
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius:
+                                                  const BorderRadius.only(
+                                                topLeft: Radius.circular(12),
+                                                bottomLeft: Radius.circular(12),
+                                              ),
+                                              child: SizedBox(
+                                                width: 120,
+                                                height: 120,
+                                                child: anuncio.fotos.isNotEmpty
+                                                    ? CachedNetworkImage(
+                                                        imageUrl:
+                                                            anuncio.fotos[0],
+                                                        fit: BoxFit.cover,
+                                                        placeholder: (context,
+                                                                url) =>
+                                                            const Center(
+                                                                child:
+                                                                    CircularProgressIndicator()),
+                                                      )
+                                                    : Container(
+                                                        color: Colors.grey[200],
+                                                        child: const Icon(
+                                                            Icons.image)),
                                               ),
                                             ),
+                                            // SE O ANÚNCIO FOR DESTAQUE (impulsionar == "1")
+                                            if (anuncio.impulsionar == "1")
+                                              Positioned(
+                                                top: 8,
+                                                left: 8,
+                                                child: Container(
+                                                  padding: const EdgeInsets
+                                                      .symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4),
+                                                  decoration: BoxDecoration(
+                                                    color: corDestaqueLaranja,
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            6),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                          color: Colors.black26,
+                                                          blurRadius: 2)
+                                                    ],
+                                                  ),
+                                                  child: const Text("DESTAQUE",
+                                                      style: TextStyle(
+                                                          color: Colors.white,
+                                                          fontSize: 10,
+                                                          fontWeight:
+                                                              FontWeight.bold)),
+                                                ),
+                                              ),
                                           ],
                                         ),
-                                      ),
+
+                                        // DADOS DO ANÚNCIO
+                                        Expanded(
+                                          child: Padding(
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 16, vertical: 8),
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: <Widget>[
+                                                Text(
+                                                  anuncio.titulo,
+                                                  style: const TextStyle(
+                                                      fontSize: 16,
+                                                      fontWeight:
+                                                          FontWeight.bold),
+                                                  maxLines: 2,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  "R\$ ${anuncio.preco}",
+                                                  style: TextStyle(
+                                                      fontSize: 18,
+                                                      fontWeight:
+                                                          FontWeight.w900,
+                                                      color:
+                                                          corDestaqueLaranja),
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  "${anuncio.cidade} • ${anuncio.data}",
+                                                  style: TextStyle(
+                                                      fontSize: 12,
+                                                      color: Colors.grey[600]),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
                                     ),
-                                  );
-                                }),
+                                  ),
+                                );
+                              },
+                            ),
                           ),
                         if (retornoMensagem == false && lista.length == 0)
                           Container(
