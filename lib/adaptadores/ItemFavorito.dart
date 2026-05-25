@@ -5,21 +5,21 @@ import 'package:pechinchar_online/views/detalhesFavorito.dart';
 
 
 class ItemFavorito extends StatelessWidget {
+  final Anuncio anuncio;
+  final VoidCallback? onTapItem;
+  final VoidCallback? onPressedRemover;
 
-  Anuncio anuncio;
-  VoidCallback onTapItem;
-  VoidCallback onPressedRemover;
-
-  ItemFavorito({
-    @required this.anuncio,
+  const ItemFavorito({
+    required this.anuncio,
     this.onTapItem,
-    this.onPressedRemover
-  });
+    this.onPressedRemover,
+    Key? key,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: (){
+      onTap: onTapItem ?? () {
         Navigator.push(context, MaterialPageRoute(builder: (context) => DetalhesFavorito(anuncio)));
       },
       child: Card(
@@ -82,14 +82,15 @@ class ItemFavorito extends StatelessWidget {
                       flex: 1,
                       child: Column(
                         children: [
-                          TextButton(
-                            style: TextButton.styleFrom(
-                              primary: Colors.red,
-                              //padding: EdgeInsets.all(8),
+                          if (onPressedRemover != null)
+                            TextButton(
+                              style: TextButton.styleFrom(
+                                foregroundColor: Colors.red,
+                                //padding: EdgeInsets.all(8),
+                              ),
+                              onPressed: onPressedRemover,
+                              child: const Icon(Icons.delete, color: Colors.red),
                             ),
-                            onPressed: this.onPressedRemover,
-                            child: Icon(Icons.delete, color: Colors.red,),
-                          ),
                         ],
                       )
                     )

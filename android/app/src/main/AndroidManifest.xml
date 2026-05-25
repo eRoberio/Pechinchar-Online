@@ -22,7 +22,7 @@
     </queries>
 
     <application
-        android:label="Pechinchar Online"
+        android:label="Acomodeme"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

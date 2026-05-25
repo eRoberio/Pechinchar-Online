@@ -1,17 +1,15 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:brasil_fields/brasil_fields.dart';
 import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:intl/intl.dart';
-import 'package:pechinchar_online/customizados/InputCustomizadoAnuncio.dart';
-import 'package:pechinchar_online/customizados/inputButtonCustomizados.dart';
-import 'package:pechinchar_online/customizados/inputDropdownButtonCustomizadoAnuncios.dart';
+import 'package:pechinchar_online/external/ImgBbApi.dart';
 import 'package:pechinchar_online/models/Anuncio.dart';
 import 'package:pechinchar_online/util/Configuracoes.dart';
 import 'package:pechinchar_online/views/impulsionar.dart';
@@ -22,17 +20,20 @@ class NovoAnuncio extends StatefulWidget {
 }
 
 class _NovoAnuncioState extends State<NovoAnuncio> {
-  String data;
+  late String data;
   static final AdRequest request = AdRequest(
     keywords: <String>['foo', 'bar'],
-    contentUrl: 'http://foo.com/bar.html',
     nonPersonalizedAds: true,
   );
 
-  BannerAd _anchoredBanner;
+  BannerAd? _anchoredBanner;
   bool _loadingAnchoredBanner = false;
 
-  List<File> _listaImagens = [];
+  final Color corPrincipalAzul = const Color(0xFF0B1C4B);
+  final Color corDestaqueLaranja = const Color(0xFFFF8C00);
+
+  List<XFile> _listaImagens = [];
+  StreamSubscription<DocumentSnapshot<Map<String, dynamic>>>? _usuarioSub;
   List<DropdownMenuItem<String>> _listaItensDropCategorias = [];
   List<DropdownMenuItem<String>> _listaItensDropSubCategorias = [];
   List<DropdownMenuItem<String>> _listaItensDropSubCategoriasImoveis = [];
@@ -42,334 +43,190 @@ class _NovoAnuncioState extends State<NovoAnuncio> {
   List<DropdownMenuItem<String>> _listaItensDropSubCategoriasRestaurantes = [];
   List<DropdownMenuItem<String>> _listaItensDropSubCategoriasTransporte = [];
   List<DropdownMenuItem<String>> _listaItensDropSubCategoriasServicos = [];
-  final _formKey = GlobalKey<FormState>();
-  Anuncio _anuncio;
-  BuildContext _dialogContext;
 
-  String _itemSelecionadoCategoria;
-  String _itemSelecionadoSubCategoria;
+  final _formKey = GlobalKey<FormState>();
+  late Anuncio _anuncio;
+  late BuildContext _dialogContext;
+
+  String? _itemSelecionadoCategoria;
+  String? _itemSelecionadoSubCategoria;
 
   TextEditingController _controllerTitulo = TextEditingController();
   TextEditingController _controllerPreco = TextEditingController();
   TextEditingController _controllerDescricao = TextEditingController();
 
+  late bool _progressBarLinear;
+  String nome = "";
+  String telefone = "";
+  String cidade = "";
+  String estado = "";
+  String endereco = "";
+
+  @override
+  void initState() {
+    super.initState();
+    _anuncio = Anuncio.gerarId();
+    _carregarItensDropdown();
+    _progressBarLinear = false;
+    _retornaDados();
+
+    DateTime date = DateTime.now();
+    data = DateFormat("dd/MM/yyyy").format(date);
+  }
+
   @override
   void dispose() {
-    super.dispose();
     _controllerTitulo.dispose();
     _controllerPreco.dispose();
     _controllerDescricao.dispose();
     _anchoredBanner?.dispose();
+    _usuarioSub?.cancel();
+    super.dispose();
   }
 
-  FToast fToast;
-  bool _progressBarLinear;
-  String nome;
-  String telefone;
-  String cidade;
-  String estado;
-  String endereco;
-
-  //retorna os dados do usuário do Firebase
   Future<dynamic> _retornaDados() async {
-    _progressBarLinear = true;
-    User user = FirebaseAuth.instance.currentUser;
-    String id = user.uid;
+    if (!mounted) return;
+    setState(() => _progressBarLinear = true);
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
 
-    FirebaseFirestore.instance
+    _usuarioSub = FirebaseFirestore.instance
         .collection("usuarios")
-        .doc(id)
+        .doc(user.uid)
         .snapshots()
         .listen((snapshot) {
       var dados = snapshot.data();
+      if (!mounted) return;
       setState(() {
-        nome = dados["nome"];
-        telefone = dados["telefone"];
-        cidade = dados["cidade"];
-        estado = dados["estado"];
-        endereco = dados["endereco"];
+        nome = dados?["nome"] ?? "";
+        telefone = dados?["telefone"] ?? "";
+        cidade = dados?["cidade"] ?? "";
+        estado = dados?["estado"] ?? "";
+        endereco = dados?["endereco"] ?? "";
         _progressBarLinear = false;
       });
+    }, onError: (_) {
+      if (!mounted) return;
+      setState(() => _progressBarLinear = false);
     });
   }
 
   _selecionarImagemGaleria() async {
+    // No Flutter Web, abrir o seletor de arquivos com um TextField ativo
+    // pode acionar assert interno do engine.
+    FocusManager.instance.primaryFocus?.unfocus();
+    if (kIsWeb) {
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+
     final ImagePicker _picker = ImagePicker();
 
-    final XFile imagemSelecionada =
-        await _picker.pickImage(source: ImageSource.gallery);
-    File imagens = File(imagemSelecionada.path);
-    if (imagens != null) {
+    // CORREÇÃO DE UPLOAD: imageQuality comprime a foto para evitar o Timeout da ImgBB API
+    final XFile? imagemSelecionada = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 60,
+    );
+
+    if (imagemSelecionada != null) {
       if (_listaImagens.length < 6) {
         setState(() {
-          _listaImagens.add(imagens);
+          _listaImagens.add(imagemSelecionada);
         });
       } else {
-        Widget toast = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(25.0),
-            color: Colors.black45,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 12.0,
-              ),
-              Text(
-                "Só é possível cadastrar 6 imagens!",
-                style: TextStyle(fontSize: 18, color: Colors.white),
-              ),
-            ],
-          ),
-        );
-        fToast.showToast(
-          child: toast,
-          gravity: ToastGravity.TOP,
-          toastDuration: Duration(seconds: 2),
-        );
+        _mostrarSnackBar(
+            "Você só pode adicionar até 6 imagens!", Colors.orange);
       }
     }
   }
 
-  //responsavel por exibir o banner de anúncios
+  void _mostrarSnackBar(String mensagem, Color cor) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensagem,
+            style: const TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold)),
+        backgroundColor: cor,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
+  }
+
   Future<void> _createAnchoredBanner(BuildContext context) async {
-    final AnchoredAdaptiveBannerAdSize size =
+    if (kIsWeb) return;
+
+    final AnchoredAdaptiveBannerAdSize? size =
         await AdSize.getAnchoredAdaptiveBannerAdSize(
       Orientation.portrait,
       MediaQuery.of(context).size.width.truncate(),
     );
 
-    if (size == null) {
-      print('Unable to get height of anchored banner.');
-      return;
-    }
+    if (size == null) return;
 
     final BannerAd banner = BannerAd(
       size: size,
       request: request,
-      adUnitId: Platform.isAndroid
-          //ca-app-pub-4141006277093451/3137185376 meu banner original
-          ? 'ca-app-pub-4141006277093451/3137185376'
-          : 'ca-app-pub-4141006277093451/3137185376',
+      adUnitId: 'ca-app-pub-4141006277093451/3137185376',
       listener: BannerAdListener(
-        onAdLoaded: (Ad ad) {
-          print('$BannerAd loaded.');
-          setState(() {
-            _anchoredBanner = ad as BannerAd;
-          });
-        },
-        onAdFailedToLoad: (Ad ad, LoadAdError error) {
-          print('$BannerAd failedToLoad: $error');
-          ad.dispose();
-        },
-        onAdOpened: (Ad ad) => print('$BannerAd onAdOpened.'),
-        onAdClosed: (Ad ad) => print('$BannerAd onAdClosed.'),
+        onAdLoaded: (Ad ad) => setState(() => _anchoredBanner = ad as BannerAd),
+        onAdFailedToLoad: (Ad ad, LoadAdError error) => ad.dispose(),
       ),
     );
     return banner.load();
   }
 
   _validarCampos(String decisao) {
-    //Recupera dados dos campos
-    String titulo = _controllerTitulo.text.trim();
-    String preco = _controllerPreco.text.trim();
-    String descricao = _controllerDescricao.text.trim();
+    if (_listaImagens.isEmpty) {
+      _mostrarSnackBar("Adicione pelo menos uma foto!", Colors.redAccent);
+      return;
+    }
+    if (_itemSelecionadoCategoria == null) {
+      _mostrarSnackBar("Selecione uma categoria!", Colors.redAccent);
+      return;
+    }
+    if (_itemSelecionadoSubCategoria == null) {
+      _mostrarSnackBar("Selecione uma subcategoria!", Colors.redAccent);
+      return;
+    }
+    if (_controllerTitulo.text.trim().isEmpty) {
+      _mostrarSnackBar("Preencha o título do anúncio!", Colors.redAccent);
+      return;
+    }
+    if (_controllerPreco.text.trim().isEmpty) {
+      _mostrarSnackBar("Preencha o preço!", Colors.redAccent);
+      return;
+    }
+    if (_controllerDescricao.text.trim().isEmpty) {
+      _mostrarSnackBar("Preencha a descrição!", Colors.redAccent);
+      return;
+    }
 
-    if (_listaImagens.isNotEmpty) {
-      if (_itemSelecionadoCategoria != null) {
-        if (_itemSelecionadoSubCategoria != null) {
-          if (titulo.isNotEmpty) {
-            if (preco.isNotEmpty) {
-              if (descricao.isNotEmpty) {
-                User auth = FirebaseAuth.instance.currentUser;
-                String idUsuarioLogado = auth.uid;
+    User? auth = FirebaseAuth.instance.currentUser;
+    if (auth == null) return;
 
-                DateTime hora = DateTime.now();
-                String horas = DateFormat.Hms().format(hora);
+    _anuncio.idUsuario = auth.uid;
+    _anuncio.titulo = _controllerTitulo.text.trim();
+    _anuncio.preco = _controllerPreco.text.trim();
+    _anuncio.descricao = _controllerDescricao.text.trim();
+    _anuncio.categoria = _itemSelecionadoCategoria!;
+    _anuncio.subCategoria = _itemSelecionadoSubCategoria!;
+    _anuncio.nome = nome;
+    _anuncio.telefone = telefone;
+    _anuncio.cidade = cidade;
+    _anuncio.estado = estado;
+    _anuncio.endereco = endereco;
+    _anuncio.data = data;
+    _anuncio.horario = DateFormat.Hms().format(DateTime.now());
+    _anuncio.impulsionar = "0";
 
-                _anuncio.idUsuario = idUsuarioLogado;
-                _anuncio.titulo = titulo;
-                _anuncio.preco = preco;
-                _anuncio.descricao = descricao;
-                _anuncio.categoria = _itemSelecionadoCategoria;
-                _anuncio.subCategoria = _itemSelecionadoSubCategoria;
-                _anuncio.nome = nome;
-                _anuncio.telefone = telefone;
-                _anuncio.cidade = cidade;
-                _anuncio.estado = estado;
-                _anuncio.endereco = endereco;
-                _anuncio.data = data;
-                _anuncio.horario = horas;
-                _anuncio.impulsionar = "0";
-                if (decisao == "cadastrar") {
-                  _salvarAnuncio(_anuncio);
-                } else {
-                  Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (context) => Impulsionar(
-                              anuncio: _anuncio, imagens: _listaImagens)));
-                }
-              } else {
-                Widget toast = Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 24.0, vertical: 12.0),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(25.0),
-                    color: Colors.black45,
-                  ),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      SizedBox(
-                        width: 12.0,
-                      ),
-                      Text(
-                        "Preencha o campo descrição!",
-                        style: TextStyle(fontSize: 18, color: Colors.white),
-                      ),
-                    ],
-                  ),
-                );
-                fToast.showToast(
-                  child: toast,
-                  gravity: ToastGravity.TOP,
-                  toastDuration: Duration(seconds: 2),
-                );
-              }
-            } else {
-              Widget toast = Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24.0, vertical: 12.0),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(25.0),
-                  color: Colors.black45,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 12.0,
-                    ),
-                    Text(
-                      "Preencha o campo preço!",
-                      style: TextStyle(fontSize: 18, color: Colors.white),
-                    ),
-                  ],
-                ),
-              );
-              fToast.showToast(
-                child: toast,
-                gravity: ToastGravity.TOP,
-                toastDuration: Duration(seconds: 2),
-              );
-            }
-          } else {
-            Widget toast = Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(25.0),
-                color: Colors.black45,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 12.0,
-                  ),
-                  Text(
-                    "Preencha o campo título!",
-                    style: TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                ],
-              ),
-            );
-            fToast.showToast(
-              child: toast,
-              gravity: ToastGravity.TOP,
-              toastDuration: Duration(seconds: 2),
-            );
-          }
-        } else {
-          Widget toast = Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(25.0),
-              color: Colors.black45,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 12.0,
-                ),
-                Text(
-                  "Selecione uma subCategoria!",
-                  style: TextStyle(fontSize: 18, color: Colors.white),
-                ),
-              ],
-            ),
-          );
-          fToast.showToast(
-            child: toast,
-            gravity: ToastGravity.TOP,
-            toastDuration: Duration(seconds: 2),
-          );
-        }
-      } else {
-        Widget toast = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(25.0),
-            color: Colors.black45,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 12.0,
-              ),
-              Text(
-                "Selecione uma categoria!",
-                style: TextStyle(fontSize: 18, color: Colors.white),
-              ),
-            ],
-          ),
-        );
-        fToast.showToast(
-          child: toast,
-          gravity: ToastGravity.TOP,
-          toastDuration: Duration(seconds: 2),
-        );
-      }
+    if (decisao == "cadastrar") {
+      _salvarAnuncio(_anuncio);
     } else {
-      Widget toast = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(25.0),
-          color: Colors.black45,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 12.0,
-            ),
-            Text(
-              "Adicione uma foto!",
-              style: TextStyle(fontSize: 18, color: Colors.white),
-            ),
-          ],
-        ),
-      );
-      fToast.showToast(
-        child: toast,
-        gravity: ToastGravity.TOP,
-        toastDuration: Duration(seconds: 2),
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (context) =>
+                Impulsionar(anuncio: _anuncio, imagens: _listaImagens)),
       );
     }
   }
@@ -380,14 +237,17 @@ class _NovoAnuncioState extends State<NovoAnuncio> {
         barrierDismissible: false,
         builder: (BuildContext context) {
           return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             content: Column(
               mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                CircularProgressIndicator(),
-                SizedBox(
-                  height: 20,
-                ),
-                Text("Salvando anúncio...")
+              children: [
+                CircularProgressIndicator(color: corDestaqueLaranja),
+                const SizedBox(height: 20),
+                Text("Enviando imagens e salvando anúncio...",
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: corPrincipalAzul, fontWeight: FontWeight.bold)),
               ],
             ),
           );
@@ -395,57 +255,62 @@ class _NovoAnuncioState extends State<NovoAnuncio> {
   }
 
   _salvarAnuncio(Anuncio anuncio) async {
+    _dialogContext = context;
     _abrirDialog(_dialogContext);
 
-    //Upload imagens no Storage
-    await _uploadImagens(anuncio);
+    try {
+      await _uploadImagens(anuncio);
 
-    //Salvar anuncio no Firestore
-    FirebaseAuth auth = FirebaseAuth.instance;
-    User usuarioLogado = auth.currentUser;
-    String idUsuarioLogado = usuarioLogado.uid;
+      User? usuarioLogado = FirebaseAuth.instance.currentUser;
+      if (usuarioLogado == null) {
+        Navigator.pop(_dialogContext);
+        _mostrarSnackBar("Sessão expirada. Faça login novamente.", Colors.red);
+        return;
+      }
 
-    FirebaseFirestore db = FirebaseFirestore.instance;
-    db
-        .collection("meus_anuncios")
-        .doc(idUsuarioLogado)
-        .collection("anuncios")
-        .doc(anuncio.id)
-        .set(anuncio.toMap())
-        .then((_) {
-      //salvar anúncio público
-      db
+      FirebaseFirestore db = FirebaseFirestore.instance;
+      await db
+          .collection("meus_anuncios")
+          .doc(usuarioLogado.uid)
+          .collection("anuncios")
+          .doc(anuncio.id)
+          .set(anuncio.toMap());
+
+      await db
           .collection("anuncios")
           .doc(anuncio.categoria)
           .collection(anuncio.categoria)
           .doc(anuncio.id)
-          .set(anuncio.toMap())
-          .then((_) {
-        Navigator.pop(_dialogContext);
-        Navigator.pop(context);
-      });
-    });
-  }
+          .set(anuncio.toMap());
 
-  Future _uploadImagens(Anuncio anuncio) async {
-    FirebaseStorage storage = FirebaseStorage.instance;
-    Reference pastaRaiz = storage.ref();
+      if (!mounted) return;
+      Navigator.pop(_dialogContext);
+      Navigator.pop(context);
+      _mostrarSnackBar("Anúncio publicado com sucesso!", Colors.green);
+    } catch (e) {
+      print(
+          "Erro no upload para ImgBB ou Firestore: $e"); // Log para facilitar o debug
 
-    for (var imagem in _listaImagens) {
-      String nomeImagem = DateTime.now().millisecondsSinceEpoch.toString();
-      Reference arquivo =
-          pastaRaiz.child("meus_anuncios").child(anuncio.id).child(nomeImagem);
-
-      UploadTask uploadTask = arquivo.putFile(imagem);
-      TaskSnapshot taskSnapshot = await uploadTask;
-
-      String url = await taskSnapshot.ref.getDownloadURL();
-      anuncio.fotos.add(url);
+      if (!mounted) return;
+      Navigator.pop(_dialogContext);
+      _mostrarSnackBar(
+        "Tempo esgotado ou erro de rede. Verifique a internet e tente novamente.",
+        Colors.redAccent,
+      );
     }
   }
 
+  Future<void> _uploadImagens(Anuncio anuncio) async {
+    if (_listaImagens.isEmpty || anuncio.fotos.isNotEmpty) {
+      return;
+    }
+
+    final ImgBbApi imgBbApi = ImgBbApi();
+    final List<String> urls = await imgBbApi.uploadImages(_listaImagens);
+    anuncio.fotos.addAll(urls);
+  }
+
   _carregarItensDropdown() {
-    //Categorias
     _listaItensDropCategorias = Configuracoes.getCategorias();
     _listaItensDropSubCategoriasImoveis = Configuracoes.getSubImoveis();
     _listaItensDropSubCategoriasProdutos = Configuracoes.getSubProdutos();
@@ -461,447 +326,311 @@ class _NovoAnuncioState extends State<NovoAnuncio> {
   _carregarSubCategoria() {
     _itemSelecionadoSubCategoria = null;
     _listaItensDropSubCategorias.clear();
+    List<DropdownMenuItem<String>> tempList = [];
+
     switch (_itemSelecionadoCategoria) {
       case "imoveis":
-        setState(() {
-          for (var item in _listaItensDropSubCategoriasImoveis)
-            _listaItensDropSubCategorias.add(item);
-        });
+        tempList = _listaItensDropSubCategoriasImoveis;
         break;
       case "produtos":
-        setState(() {
-          for (var item in _listaItensDropSubCategoriasProdutos)
-            _listaItensDropSubCategorias.add(item);
-        });
+        tempList = _listaItensDropSubCategoriasProdutos;
         break;
       case "supermercados":
-        setState(() {
-          for (var item in _listaItensDropSubCategoriasSupermercados)
-            _listaItensDropSubCategorias.add(item);
-        });
+        tempList = _listaItensDropSubCategoriasSupermercados;
         break;
       case "moveis":
-        setState(() {
-          for (var item in _listaItensDropSubCategoriasMoveis)
-            _listaItensDropSubCategorias.add(item);
-        });
+        tempList = _listaItensDropSubCategoriasMoveis;
         break;
       case "restaurantes":
-        setState(() {
-          for (var item in _listaItensDropSubCategoriasRestaurantes)
-            _listaItensDropSubCategorias.add(item);
-        });
+        tempList = _listaItensDropSubCategoriasRestaurantes;
         break;
       case "transporte":
-        setState(() {
-          for (var item in _listaItensDropSubCategoriasTransporte)
-            _listaItensDropSubCategorias.add(item);
-        });
+        tempList = _listaItensDropSubCategoriasTransporte;
         break;
       case "servicos":
-        setState(() {
-          for (var item in _listaItensDropSubCategoriasServicos)
-            _listaItensDropSubCategorias.add(item);
-        });
+        tempList = _listaItensDropSubCategoriasServicos;
         break;
     }
+
+    setState(() {
+      _listaItensDropSubCategorias.addAll(tempList);
+    });
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _anuncio = Anuncio.gerarId();
-    _carregarItensDropdown();
-    _retornaDados();
-    _progressBarLinear = false;
-    fToast = FToast();
-    fToast.init(context);
-    //retorna a data atual
-    DateTime date = DateTime.now();
-    date = DateTime(date.year, date.month, date.day);
-    data = DateFormat("dd/MM/yyyy").format(date);
+  InputDecoration _buildInputDecoration(String label) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: TextStyle(color: Colors.grey[700]),
+      filled: true,
+      fillColor: Colors.white,
+      border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!)),
+      enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: Colors.grey[300]!)),
+      focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide(color: corDestaqueLaranja, width: 2)),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_loadingAnchoredBanner) {
+    if (!kIsWeb && !_loadingAnchoredBanner) {
       _loadingAnchoredBanner = true;
       _createAnchoredBanner(context);
     }
+
     return Scaffold(
-        appBar: AppBar(
-          flexibleSpace: FlexibleSpaceBar(
-            centerTitle: true,
-            title: Text("Novo anúncio"),
-          ),
-          actions: [
-            Padding(
-              padding: EdgeInsets.all(4.0),
-              child: Image.asset("imagens/logo_anunciar.png", width: 60),
-            )
-          ],
-          backgroundColor: Color(0xFF129E09),
-        ),
-        body: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(
-                child: Stack(
-              children: [
-                Container(
-                    child: GestureDetector(
-                  onTap: () {
-                    FocusScope.of(context).requestFocus(new FocusNode());
-                  },
-                  child: SingleChildScrollView(
-                    child: Container(
-                      padding: EdgeInsets.all(16),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: <Widget>[
-                            FormField<List>(
-                              initialValue: _listaImagens,
-                              builder: (state) {
-                                return Column(
-                                  children: <Widget>[
-                                    Container(
-                                      height: 100,
-                                      child: ListView.builder(
-                                          scrollDirection: Axis.horizontal,
-                                          itemCount:
-                                              _listaImagens.length + 1, //3
-                                          itemBuilder: (context, indice) {
-                                            if (indice ==
-                                                _listaImagens.length) {
-                                              return Padding(
-                                                padding: EdgeInsets.symmetric(
-                                                    horizontal: 8),
-                                                child: GestureDetector(
-                                                  onTap: () {
-                                                    _selecionarImagemGaleria();
-                                                  },
-                                                  child: CircleAvatar(
-                                                    backgroundColor:
-                                                        Color(0xFF46b044),
-                                                    radius: 50,
-                                                    child: Column(
-                                                      mainAxisAlignment:
-                                                          MainAxisAlignment
-                                                              .center,
-                                                      children: <Widget>[
-                                                        Icon(
-                                                          Icons.add_a_photo,
-                                                          size: 40,
-                                                          color:
-                                                              Colors.grey[100],
-                                                        ),
-                                                        Text(
-                                                          "Adicionar",
-                                                          style: TextStyle(
-                                                              color: Colors
-                                                                  .grey[100]),
-                                                        )
-                                                      ],
-                                                    ),
-                                                  ),
-                                                ),
-                                              );
-                                            }
-
-                                            if (_listaImagens.length > 0) {
-                                              return Padding(
-                                                padding: EdgeInsets.symmetric(
-                                                    horizontal: 8),
-                                                child: GestureDetector(
-                                                  onTap: () {
-                                                    showDialog(
-                                                        context: context,
-                                                        builder:
-                                                            (context) => Dialog(
-                                                                  child: Column(
-                                                                    mainAxisSize:
-                                                                        MainAxisSize
-                                                                            .min,
-                                                                    children: <
-                                                                        Widget>[
-                                                                      Image.file(
-                                                                          _listaImagens[
-                                                                              indice]),
-                                                                      TextButton(
-                                                                        child:
-                                                                            Text(
-                                                                          "Excluir",
-                                                                          style:
-                                                                              TextStyle(color: Colors.red),
-                                                                        ),
-                                                                        onPressed:
-                                                                            () {
-                                                                          setState(
-                                                                              () {
-                                                                            _listaImagens.removeAt(indice);
-                                                                            Navigator.of(context).pop();
-                                                                          });
-                                                                        },
-                                                                      )
-                                                                    ],
-                                                                  ),
-                                                                ));
-                                                  },
-                                                  child: CircleAvatar(
-                                                    radius: 50,
-                                                    backgroundImage: FileImage(
-                                                        _listaImagens[indice]),
-                                                    child: Container(
-                                                      color: Color.fromRGBO(
-                                                          255, 255, 255, 0.4),
-                                                      alignment:
-                                                          Alignment.center,
-                                                      child: Icon(
-                                                        Icons.delete,
-                                                        color: Colors.red,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                            return Container();
-                                          }),
-                                    ),
-                                    if (state.hasError)
-                                      Container(
-                                        child: Text(
-                                          "[${state.errorText}]",
+      backgroundColor: Colors.grey[100],
+      appBar: AppBar(
+        backgroundColor: corPrincipalAzul,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: Colors.white),
+        centerTitle: true,
+        title: const Text("Criar Anúncio",
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0, top: 8, bottom: 8),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.asset("imagens/logo.jpeg",
+                  width: 40, fit: BoxFit.cover),
+            ),
+          )
+        ],
+      ),
+      body: Column(
+        children: [
+          if (_progressBarLinear)
+            LinearProgressIndicator(
+                color: corDestaqueLaranja, backgroundColor: corPrincipalAzul),
+          Expanded(
+            child: GestureDetector(
+              onTap: () => FocusScope.of(context).unfocus(),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text("Fotos do Anúncio",
+                          style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF0B1C4B))),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 100,
+                        child: ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _listaImagens.length + 1,
+                          itemBuilder: (context, index) {
+                            if (index == _listaImagens.length) {
+                              return GestureDetector(
+                                onTap: _selecionarImagemGaleria,
+                                child: Container(
+                                  width: 100,
+                                  height:
+                                      100, // Garantindo a altura do botão também
+                                  margin: const EdgeInsets.only(right: 8),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                        color:
+                                            corDestaqueLaranja.withOpacity(0.5),
+                                        style: BorderStyle.solid,
+                                        width: 2),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.add_a_photo,
+                                          color: corDestaqueLaranja, size: 30),
+                                      const SizedBox(height: 4),
+                                      Text("Adicionar",
                                           style: TextStyle(
-                                              color: Colors.red, fontSize: 14),
-                                        ),
-                                      )
-                                  ],
-                                );
-                              },
-                            ),
-                            Padding(
-                                padding: EdgeInsets.all(8),
-                                child: _progressBarLinear
-                                    ? LinearProgressIndicator(
-                                        backgroundColor: Colors.green,
-                                        valueColor:
-                                            AlwaysStoppedAnimation<Color>(
-                                                Theme.of(context).accentColor),
-                                      )
-                                    : Center()),
-                            Row(
-                              children: <Widget>[
-                                Expanded(
-                                  child: Container(
-                                    child:
-                                        InputDropdownButtonCustomizadoAnuncios(
-                                      hint: "Categoria",
-                                      items: _listaItensDropCategorias,
-                                      value: _itemSelecionadoCategoria,
-                                      onChanged: (valor) {
-                                        setState(() {
-                                          _itemSelecionadoCategoria = valor;
-                                          _carregarSubCategoria();
-                                        });
-                                      },
-                                      icon: Icon(Icons.map),
-                                    ),
+                                              color: corDestaqueLaranja,
+                                              fontSize: 12)),
+                                    ],
                                   ),
                                 ),
-                                Padding(padding: EdgeInsets.all(8)),
-                                Expanded(
-                                  child: Container(
-                                    child:
-                                        InputDropdownButtonCustomizadoAnuncios(
-                                      hint: "SubCategoria",
-                                      items: _listaItensDropSubCategorias,
-                                      value: _itemSelecionadoSubCategoria,
-                                      onChanged: (valor) {
-                                        setState(() {
-                                          _itemSelecionadoSubCategoria = valor;
-                                        });
-                                      },
-                                      icon: Icon(Icons.map),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            Padding(
-                              padding: EdgeInsets.only(bottom: 8, top: 8),
-                              child: InputCustomizadoAnuncio(
-                                controller: _controllerTitulo,
-                                hint: "Título",
-                              ),
-                            ),
-
-                            Padding(
-                              padding: EdgeInsets.only(bottom: 8),
-                              child: InputCustomizadoAnuncio(
-                                controller: _controllerPreco,
-                                hint: "Preço",
-                                type: TextInputType.number,
-                                maxLength: 10,
-                                inputFormatters: [
-                                  FilteringTextInputFormatter.digitsOnly,
-                                  RealInputFormatter(centavos: true)
-                                ],
-                              ),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.only(bottom: 8),
-                              child: InputCustomizadoAnuncio(
-                                controller: _controllerDescricao,
-                                hint: "Descrição (200 caracteres)",
-                                maxLines: null,
-                                maxLength: 200,
-                              ),
-                            ), //color: Color(0x90000000)
-                            Container(
-                              child: InputDecorator(
-                                decoration: InputDecoration(
-                                  contentPadding:
-                                      EdgeInsets.fromLTRB(32, 16, 32, 16),
-                                  labelText: 'Nome',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(25),
-                                  ),
-                                ),
-                                child: Text(
-                                  "$nome",
-                                  style: TextStyle(fontSize: 20),
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.only(bottom: 8, top: 8),
-                              child: Container(
-                                child: InputDecorator(
-                                  decoration: InputDecoration(
-                                    contentPadding:
-                                        EdgeInsets.fromLTRB(32, 16, 32, 16),
-                                    labelText: 'Telefone',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(25),
-                                    ),
-                                  ),
-                                  child: Text(
-                                    "$telefone",
-                                    style: TextStyle(fontSize: 20),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                              );
+                            }
+                            return Stack(
                               children: [
-                                Expanded(
-                                  flex: 4,
-                                  child: Container(
-                                    child: InputDecorator(
-                                      decoration: InputDecoration(
-                                        contentPadding:
-                                            EdgeInsets.fromLTRB(32, 16, 32, 16),
-                                        labelText: 'Cidade',
-                                        border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(25),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        "$cidade",
-                                        style: TextStyle(fontSize: 20),
-                                      ),
-                                    ),
+                                Container(
+                                  width: 100,
+                                  height: 100, // CORREÇÃO DA IMAGEM INVISÍVEL
+                                  margin: const EdgeInsets.only(right: 12),
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(12),
+                                    image: DecorationImage(
+                                        image: kIsWeb
+                                            ? NetworkImage(
+                                                _listaImagens[index].path)
+                                            : FileImage(
+                                                File(_listaImagens[index].path),
+                                              ) as ImageProvider,
+                                        fit: BoxFit.cover),
                                   ),
                                 ),
-                                Padding(padding: EdgeInsets.only(right: 8)),
-                                Expanded(
-                                  flex: 2,
-                                  child: Container(
-                                    child: InputDecorator(
-                                      decoration: InputDecoration(
-                                        contentPadding:
-                                            EdgeInsets.fromLTRB(32, 16, 32, 16),
-                                        labelText: 'Estado',
-                                        border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(25),
-                                        ),
-                                      ),
-                                      child: Text(
-                                        "$estado",
-                                        style: TextStyle(fontSize: 20),
-                                      ),
+                                Positioned(
+                                  top: 4,
+                                  right: 16,
+                                  child: GestureDetector(
+                                    onTap: () => setState(
+                                        () => _listaImagens.removeAt(index)),
+                                    child: Container(
+                                      decoration: const BoxDecoration(
+                                          color: Colors.red,
+                                          shape: BoxShape.circle),
+                                      padding: const EdgeInsets.all(4),
+                                      child: const Icon(Icons.close,
+                                          color: Colors.white, size: 16),
                                     ),
                                   ),
                                 ),
                               ],
-                            ),
-                            Padding(padding: EdgeInsets.only(bottom: 8)),
-                            Container(
-                              child: InputDecorator(
-                                decoration: InputDecoration(
-                                  contentPadding:
-                                      EdgeInsets.fromLTRB(32, 16, 32, 16),
-                                  labelText: 'Endereço',
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(25),
-                                  ),
-                                ),
-                                child: Text(
-                                  "$endereco",
-                                  style: TextStyle(fontSize: 20),
-                                ),
-                              ),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.only(top: 16),
-                              child: InputButtonCustomizado(
-                                text: "Impulsionar anúncio",
-                                onPressed: () {
-                                  //Configura dialog context
-                                  _dialogContext = context;
-                                  //salvar anuncio
-                                  _validarCampos("impulsionar");
-                                },
-                              ),
-                            ),
-                            Padding(
-                              padding: EdgeInsets.only(top: 8),
-                              child: InputButtonCustomizado(
-                                text: "Cadastrar anúncio",
-                                onPressed: () {
-                                  //Configura dialog context
-                                  _dialogContext = context;
-                                  //salvar anuncio
-                                  _validarCampos("cadastrar");
-                                },
-                              ),
-                            )
-                          ],
+                            );
+                          },
                         ),
                       ),
-                    ),
+                      const SizedBox(height: 24),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _itemSelecionadoCategoria,
+                              decoration: _buildInputDecoration("Categoria"),
+                              items: _listaItensDropCategorias,
+                              onChanged: (valor) => setState(() {
+                                _itemSelecionadoCategoria = valor;
+                                _carregarSubCategoria();
+                              }),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: DropdownButtonFormField<String>(
+                              value: _itemSelecionadoSubCategoria,
+                              decoration: _buildInputDecoration("Subcategoria"),
+                              items: _listaItensDropSubCategorias,
+                              onChanged: (valor) => setState(
+                                  () => _itemSelecionadoSubCategoria = valor),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _controllerTitulo,
+                        decoration: _buildInputDecoration("Título do Anúncio"),
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _controllerPreco,
+                        keyboardType: TextInputType.number,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.digitsOnly,
+                          RealInputFormatter(
+                              moeda:
+                                  true) // Isso já coloca o R$ automaticamente
+                        ],
+                        decoration:
+                            _buildInputDecoration("Preço"), // Fica só assim!
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _controllerDescricao,
+                        maxLines: 4,
+                        maxLength: 200,
+                        decoration: _buildInputDecoration(
+                            "Descrição do produto ou serviço"),
+                      ),
+                      const SizedBox(height: 24),
+                      Card(
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: BorderSide(color: Colors.grey[300]!)),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text("Seus Dados (Públicos)",
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: corPrincipalAzul)),
+                              const Divider(),
+                              Text("Nome: $nome",
+                                  style: const TextStyle(fontSize: 14)),
+                              const SizedBox(height: 4),
+                              Text("Contato: $telefone",
+                                  style: const TextStyle(fontSize: 14)),
+                              const SizedBox(height: 4),
+                              Text("Local: $cidade - $estado",
+                                  style: const TextStyle(fontSize: 14)),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        height: 50,
+                        child: OutlinedButton.icon(
+                          icon: Icon(Icons.rocket_launch,
+                              color: corDestaqueLaranja),
+                          label: Text("Impulsionar Anúncio",
+                              style: TextStyle(
+                                  fontSize: 16, color: corDestaqueLaranja)),
+                          style: OutlinedButton.styleFrom(
+                            side:
+                                BorderSide(color: corDestaqueLaranja, width: 2),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () => _validarCampos("impulsionar"),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        height: 50,
+                        child: ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: corPrincipalAzul,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onPressed: () => _validarCampos("cadastrar"),
+                          child: const Text("Publicar Grátis",
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white)),
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                    ],
                   ),
-                )),
-              ],
-            )),
-            Column(
-              children: [
-                if (_anchoredBanner != null)
-                  Container(
-                    color: Colors.white,
-                    width: _anchoredBanner.size.width.toDouble(),
-                    height: _anchoredBanner.size.height.toDouble(),
-                    child: AdWidget(ad: _anchoredBanner),
-                  ),
-              ],
-            )
-          ],
-        ));
+                ),
+              ),
+            ),
+          ),
+          if (_anchoredBanner != null)
+            Container(
+              color: Colors.white,
+              width: _anchoredBanner!.size.width.toDouble(),
+              height: _anchoredBanner!.size.height.toDouble(),
+              child: AdWidget(ad: _anchoredBanner!),
+            ),
+        ],
+      ),
+    );
   }
 }

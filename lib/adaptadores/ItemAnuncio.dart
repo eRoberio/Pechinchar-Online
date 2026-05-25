@@ -3,22 +3,23 @@ import 'package:flutter/material.dart';
 import 'package:pechinchar_online/models/Anuncio.dart';
 
 
+
 class ItemAnuncio extends StatelessWidget {
+  final Anuncio anuncio;
+  final VoidCallback? onTapItem;
+  final VoidCallback? onPressedRemover;
 
-  Anuncio anuncio;
-  VoidCallback onTapItem;
-  VoidCallback onPressedRemover;
-
-  ItemAnuncio({
-    @required this.anuncio,
+  const ItemAnuncio({
+    required this.anuncio,
     this.onTapItem,
-    this.onPressedRemover
-  });
+    this.onPressedRemover,
+    Key? key,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: this.onTapItem,
+      onTap: onTapItem,
       child: Card(
         margin: EdgeInsets.only(top: 4, bottom: 4, right: 8, left: 8),
         child: Padding(
@@ -64,17 +65,18 @@ class ItemAnuncio extends StatelessWidget {
                 ],),
               ),
             ),
-            if( this.onPressedRemover != null ) Expanded(
-              flex: 1,
-              child: TextButton(
-                style: TextButton.styleFrom(
-                  primary: Colors.red,
-                  padding: EdgeInsets.all(10),
+            if (onPressedRemover != null)
+              Expanded(
+                flex: 1,
+                child: TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    padding: EdgeInsets.all(10),
+                  ),
+                  onPressed: onPressedRemover,
+                  child: const Icon(Icons.delete, color: Colors.red),
                 ),
-                onPressed: this.onPressedRemover,
-                child: Icon(Icons.delete, color: Colors.red,),
-              ),
-            )
+              )
             //botao remover
           ],
           ),

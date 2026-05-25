@@ -1,17 +1,17 @@
 import 'dart:async';
-import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 
 
 class Debouncer {
   final int milliseconds;
-  VoidCallback action;
-  Timer _timer;
+  late VoidCallback action;
+  Timer? _timer;
 
-  Debouncer({this.milliseconds});
+  Debouncer({required this.milliseconds});
 
   run(VoidCallback action) {
-    if (null != _timer) {
-      _timer.cancel();
+    if (_timer != null) {
+      _timer!.cancel();
     }
     _timer = Timer(Duration(milliseconds: milliseconds), action);
   }

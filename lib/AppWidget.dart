@@ -4,12 +4,13 @@ import 'package:flutter_modular/flutter_modular.dart';
 class AppWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return MaterialApp.router(
       debugShowCheckedModeBanner: false,
-      initialRoute: "/",
       theme: ThemeData(
-        accentColor: Color(0xFF0C6306),
+        colorScheme: ColorScheme.fromSwatch().copyWith(secondary: Color(0xFF0C6306)),
       ),
-    ).modular();
+      routeInformationParser: Modular.routeInformationParser,
+      routerDelegate: Modular.routerDelegate,
+    );
   }
 }

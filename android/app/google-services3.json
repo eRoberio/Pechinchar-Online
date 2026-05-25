@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "835782642934",
+    "firebase_url": "https://pack-university-default-rtdb.firebaseio.com",
+    "project_id": "pack-university",
+    "storage_bucket": "pack-university.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:835782642934:android:e415b49fea87ab6d3e30d7",
+        "android_client_info": {
+          "package_name": "icm.technology.mobile.pechinchar_online"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDCEclQm4y-YcxmausLxEfKIxRPkkY49rI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

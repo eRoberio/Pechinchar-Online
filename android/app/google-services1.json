@@ -1,0 +1,98 @@
+{
+  "project_info": {
+    "project_number": "10417094027",
+    "firebase_url": "https://pechinchar-f38be.firebaseio.com",
+    "project_id": "pechinchar-f38be",
+    "storage_bucket": "pechinchar-f38be.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:10417094027:android:8a83097c3c60d278bb838e",
+        "android_client_info": {
+          "package_name": "com.example.doglife"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "10417094027-34t4mbl6ibah7lafrq3eddken3iv1pu7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVKurHgFwqXlfRc4Zp4OfFs_BfZmuJa3o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "10417094027-34t4mbl6ibah7lafrq3eddken3iv1pu7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:10417094027:android:03291c8364fbd653bb838e",
+        "android_client_info": {
+          "package_name": "com.example.pechinchar"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "10417094027-34t4mbl6ibah7lafrq3eddken3iv1pu7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVKurHgFwqXlfRc4Zp4OfFs_BfZmuJa3o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "10417094027-34t4mbl6ibah7lafrq3eddken3iv1pu7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:10417094027:android:21402a7a4afa4d55bb838e",
+        "android_client_info": {
+          "package_name": "icm.technology.mobile.pechinchar_online"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "10417094027-34t4mbl6ibah7lafrq3eddken3iv1pu7.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDVKurHgFwqXlfRc4Zp4OfFs_BfZmuJa3o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "10417094027-34t4mbl6ibah7lafrq3eddken3iv1pu7.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

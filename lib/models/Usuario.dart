@@ -1,10 +1,10 @@
 class Usuario {
 
-  String _nome;
-  String _telefone;
-  String _cidade;
-  String _estado;
-  String _endereco;
+  late String _nome;
+  late String _telefone;
+  late String _cidade;
+  late String _estado;
+  late String _endereco;
 
   Usuario();
 

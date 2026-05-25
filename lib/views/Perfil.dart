@@ -1,599 +1,351 @@
-import 'package:brasil_fields/brasil_fields.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:pechinchar_online/customizados/InputCustomizadoAnuncio.dart';
-import 'package:pechinchar_online/customizados/inputButtonCustomizados.dart';
-import 'package:pechinchar_online/customizados/inputCustomizado.dart';
-import 'package:pechinchar_online/customizados/inputDropdownButtonCustomizado.dart';
-import 'package:pechinchar_online/external/IbgeApi.dart';
-import 'package:pechinchar_online/models/Anuncio.dart';
-import 'package:pechinchar_online/models/IbgeApiModel.dart';
-import 'package:pechinchar_online/models/Usuario.dart';
-import 'package:pechinchar_online/models/deletarPerfil.dart';
-
 
 class Perfil extends StatefulWidget {
-  const Perfil({Key key}) : super(key: key);
+  const Perfil({Key? key}) : super(key: key);
 
   @override
   _PerfilState createState() => _PerfilState();
 }
 
 class _PerfilState extends State<Perfil> {
-
-  String nome;
-  String telefone;
-  String cidade;
-  String estado;
-  String endereco;
-
-   //retorna os dados do usuário do Firebase
-  Future<dynamic> _retornaDados() async {
-    _progressBarLinear = true;
-    User user = FirebaseAuth.instance.currentUser;
-    String id = user.uid;
-
-    FirebaseFirestore.instance
-        .collection("usuarios")
-        .doc(id)
-        .snapshots()
-        .listen((snapshot) {
-      var dados = snapshot.data();
-      setState(() {
-        nome     = dados["nome"];
-        telefone = dados["telefone"];
-        cidade   = dados["cidade"];
-        estado   = dados["estado"];
-        endereco = dados["endereco"];
-        _progressBarLinear = false;
-      });
-    });
-  }
-
-  List<DropdownMenuItem<String>> _listaEstados = [];
-  List<DropdownMenuItem<String>> _listaCidades = [];
-
+  final _formKey = GlobalKey<FormState>();
 
   TextEditingController _controllerNome = TextEditingController();
-  TextEditingController _controllerEndereco = TextEditingController();
   TextEditingController _controllerTelefone = TextEditingController();
+  TextEditingController _controllerCidade = TextEditingController();
+  TextEditingController _controllerEndereco = TextEditingController();
+  String? _estadoSelecionado;
 
-  FToast fToast;
-  Usuario usuario = Usuario();
-  String _estadoSelecionado;
-  String _cidadeSelecionada;
-  bool _progressBarLinear;
-  List<Anuncio> listaAnuncios = [];
+  final Color corPrincipalAzul = const Color(0xFF0B1C4B);
+  final Color corDestaqueLaranja = const Color(0xFFFF8C00);
+
+  String _idUsuarioLogado = "";
+  bool _carregando = true;
+  bool _cadastroIncompleto = false; // Flag para "forçar" a atualização
+
+  List<String> _estados = [
+    "AC",
+    "AL",
+    "AP",
+    "AM",
+    "BA",
+    "CE",
+    "DF",
+    "ES",
+    "GO",
+    "MA",
+    "MT",
+    "MS",
+    "MG",
+    "PA",
+    "PB",
+    "PR",
+    "PE",
+    "PI",
+    "RJ",
+    "RN",
+    "RS",
+    "RO",
+    "RR",
+    "SC",
+    "SP",
+    "SE",
+    "TO"
+  ];
 
   @override
   void initState() {
     super.initState();
-    fToast = FToast();
-    fToast.init(context);
-    _carregarItensDropdownEstados();
-    _retornaDados();
-    _retornaIdAnuncios();
-    _progressBarLinear = false;
+    _recuperarDadosUsuario();
   }
 
-  @override
-  void dispose() {
-    _controllerNome.dispose();
-    _controllerEndereco.dispose();
-    _controllerTelefone.dispose();
-    super.dispose();
-  }
-
-  Future _carregarItensDropdownCidades() async {
-    _cidadeSelecionada = null;
-    _listaCidades.clear();
-    IbgeApi apiCidades = IbgeApi();
-    List _listaCidade = [];
-    _listaCidade = await apiCidades.getSearchEstado(_estadoSelecionado);
-
-    for (int i = 0; i < _listaCidade.length; i++) {
-      IbgeApiModel nome = IbgeApiModel();
-      nome = _listaCidade[i];
-      setState(() {
-        _listaCidades
-            .add(DropdownMenuItem(child: Text(nome.nome), value: nome.nome));
-      });
-    }
-  }
-
-//carrega todos os estados do brasil
-  _carregarItensDropdownEstados() {
-    for(var estado in Estados.listaEstadosSigla) {
-      _listaEstados.add(DropdownMenuItem(child: Text(estado), value: estado,));
-    }
-  }
-
-  _validarCampos() {
-
-    //Recupera dados dos campos
-    String nome = _controllerNome.text.trim();
-    String endereco = _controllerEndereco.text.trim();
-    String telefone = _controllerTelefone.text;
-
-    if (nome.isNotEmpty) {
-      if (telefone.isNotEmpty) {
-        if (_estadoSelecionado != null) {
-          if (_cidadeSelecionada != null) {
-            if (endereco.isNotEmpty) {
-              setState(() {
-                _progressBarLinear = true;
-              });
-                  usuario.nome = nome;
-                  usuario.telefone = telefone;
-                  usuario.cidade = _cidadeSelecionada;
-                  usuario.estado = _estadoSelecionado;
-                  usuario.endereco = endereco;
-                  _atualizarPerfil(usuario);
-            }else {
-              Widget toast = Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 24.0, vertical: 12.0),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(25.0),
-                  color: Colors.black45,
-                ),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 12.0,
-                    ),
-                    Text(
-                      "Informe o seu endereço!",
-                      style: TextStyle(fontSize: 18, color: Colors.white),
-                    ),
-                  ],
-                ),
-              );
-              fToast.showToast(
-                child: toast,
-                gravity: ToastGravity.TOP,
-                toastDuration: Duration(seconds: 2),
-              );
-            }
-          } else {
-            Widget toast = Container(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(25.0),
-                color: Colors.black45,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 12.0,
-                  ),
-                  Text(
-                    "Informe a sua cidade!",
-                    style: TextStyle(fontSize: 18, color: Colors.white),
-                  ),
-                ],
-              ),
-            );
-            fToast.showToast(
-              child: toast,
-              gravity: ToastGravity.TOP,
-              toastDuration: Duration(seconds: 2),
-            );
-          }
-        } else {
-          Widget toast = Container(
-            padding:
-            const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(25.0),
-              color: Colors.black45,
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  width: 12.0,
-                ),
-                Text(
-                  "Informe o seu estado!",
-                  style: TextStyle(fontSize: 18, color: Colors.white),
-                ),
-              ],
-            ),
-          );
-          fToast.showToast(
-            child: toast,
-            gravity: ToastGravity.TOP,
-            toastDuration: Duration(seconds: 2),
-          );
-        }
-      } else {
-        Widget toast = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(25.0),
-            color: Colors.black45,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(
-                width: 12.0,
-              ),
-              Text(
-                "Informe o seu telefone!",
-                style: TextStyle(fontSize: 18, color: Colors.white),
-              ),
-            ],
-          ),
-        );
-        fToast.showToast(
-          child: toast,
-          gravity: ToastGravity.TOP,
-          toastDuration: Duration(seconds: 2),
-        );
-      }
-    } else {
-      Widget toast = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(25.0),
-          color: Colors.black45,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 12.0,
-            ),
-            Text(
-              "Informe o seu nome!",
-              style: TextStyle(fontSize: 18, color: Colors.white),
-            ),
-          ],
-        ),
-      );
-      fToast.showToast(
-        child: toast,
-        gravity: ToastGravity.TOP,
-        toastDuration: Duration(seconds: 2),
-      );
-    }
-  }
-
-  Future<dynamic> _retornaIdAnuncios() async {
-    User user = FirebaseAuth.instance.currentUser;
-    String id = user.uid;
-
-    FirebaseFirestore db = FirebaseFirestore.instance;
-   QuerySnapshot querySnapshot = await db
-        .collection("meus_anuncios")
-        .doc( id )
-        .collection("anuncios")
-        .get();
-    for(DocumentSnapshot dados in querySnapshot.docs){
-      Anuncio anuncios = Anuncio();
-      if(dados.exists){
-        setState(() {
-          anuncios.titulo       = dados["titulo"];
-          anuncios.idUsuario    = dados["idUsuario"];
-          anuncios.id           = dados["id"];
-          anuncios.descricao    = dados["descricao"];
-          anuncios.preco        = dados["preco"];
-          anuncios.nome         = dados["nome"];
-          anuncios.categoria    = dados["categoria"];
-          anuncios.subCategoria = dados["subCategoria"];
-          anuncios.estado       = dados["estado"];
-          anuncios.telefone     = dados["telefone"];
-          anuncios.cidade       = dados["cidade"];
-          anuncios.impulsionar  = dados["impulsionar"];
-          anuncios.endereco     = dados["endereco"];
-          anuncios.fotos        = List<String>.from(dados["fotos"]);
-          anuncios.data         = dados["data"];
-          anuncios.horario      = dados["horario"];
-
-          listaAnuncios.add(anuncios);
-        });
-      }
-    }
-  }
-
-  _atualizarAnuncio() async {
-
-    //Salvar anuncio no Firestore
+  _recuperarDadosUsuario() async {
     FirebaseAuth auth = FirebaseAuth.instance;
-    User usuarioLogado = auth.currentUser;
-    String idUsuarioLogado = usuarioLogado.uid;
+    User? usuarioLogado = auth.currentUser;
 
-    for(int i = 0; i < listaAnuncios.length; i++) {
-      listaAnuncios[i].nome     = nome;
-      listaAnuncios[i].telefone = telefone;
-      listaAnuncios[i].cidade   = cidade;
-      listaAnuncios[i].estado   = estado;
-      listaAnuncios[i].endereco = endereco;
+    if (usuarioLogado != null) {
+      _idUsuarioLogado = usuarioLogado.uid;
 
       FirebaseFirestore db = FirebaseFirestore.instance;
-      db.collection("meus_anuncios")
-          .doc(idUsuarioLogado)
-          .collection("anuncios")
-          .doc(listaAnuncios[i].id)
-          .set(listaAnuncios[i].toMap()).then((_) {
-        //salvar anúncio público
-        db.collection("anuncios")
-            .doc(listaAnuncios[i].categoria)
-            .collection(listaAnuncios[i].categoria)
-            .doc(listaAnuncios[i].id)
-            .set(listaAnuncios[i].toMap()).then((_) {
+      try {
+        DocumentSnapshot snapshot =
+            await db.collection("usuarios").doc(_idUsuarioLogado).get();
+        if (!mounted) return;
 
+        if (snapshot.exists) {
+          Map<String, dynamic>? dados =
+              snapshot.data() as Map<String, dynamic>?;
+          if (dados != null) {
+            setState(() {
+              _controllerNome.text = dados["nome"] ?? "";
+              _controllerTelefone.text = dados["telefone"] ?? "";
+              _controllerCidade.text = dados["cidade"] ?? "";
+              _controllerEndereco.text = dados["endereco"] ?? "";
+              _estadoSelecionado = dados["estado"];
+              _carregando = false;
+            });
+          }
+        } else {
+          // Documento NÃO existe no novo banco. Força o usuário a preencher.
+          setState(() {
+            _cadastroIncompleto = true;
+            _carregando = false;
+          });
+        }
+      } catch (_) {
+        if (!mounted) return;
+        setState(() {
+          _carregando = false;
         });
+      }
+    }
+  }
+
+  _atualizarPerfil() {
+    if (_formKey.currentState!.validate()) {
+      FirebaseFirestore db = FirebaseFirestore.instance;
+
+      Map<String, dynamic> dadosAtualizados = {
+        "nome": _controllerNome.text,
+        "telefone": _controllerTelefone.text, // Ex: 73 98125-8195
+        "cidade": _controllerCidade.text,
+        "endereco": _controllerEndereco.text,
+        "estado": _estadoSelecionado,
+      };
+
+      db
+          .collection("usuarios")
+          .doc(_idUsuarioLogado)
+          .set(dadosAtualizados)
+          .then((_) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Perfil atualizado com sucesso no novo sistema!"),
+            backgroundColor: Colors.green,
+          ),
+        );
+        setState(() {
+          _cadastroIncompleto = false;
+        });
+      }).catchError((erro) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Erro ao atualizar: $erro"),
+            backgroundColor: Colors.red,
+          ),
+        );
       });
     }
   }
 
-  _atualizarPerfil(Usuario usuario) async{
-    User user = FirebaseAuth.instance.currentUser;
-    String id = user.uid;
-
-    final firestoreInstance = FirebaseFirestore.instance;
-    firestoreInstance.collection("usuarios").doc(id).set(
-        {
-          "nome"     : usuario.nome,
-          "telefone" : usuario.telefone,
-          "cidade"   : usuario.cidade,
-          "estado"   : usuario.estado,
-          "endereco" : usuario.endereco
-
-        }).then((value){
-          setState(() {
-            _atualizarAnuncio();
-            _progressBarLinear = false;
-          });
-      Widget toast = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(25.0),
-          color: Colors.black45,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 12.0,
-            ),
-            Text("Atualizado com sucesso!",
-                style: TextStyle(color: Colors.white, fontSize: 20)),
-          ],
-        ),
-      );
-
-      fToast.showToast(
-        child: toast,
-        gravity: ToastGravity.TOP,
-        toastDuration: Duration(seconds: 2),
-      );
-    }).catchError((erro){
-      Widget toast = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(25.0),
-          color: Colors.black45,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 12.0,
-            ),
-            Text("Erro ao atualizar",
-                style: TextStyle(color: Colors.white, fontSize: 20)),
-          ],
-        ),
-      );
-
-      fToast.showToast(
-        child: toast,
-        gravity: ToastGravity.TOP,
-        toastDuration: Duration(seconds: 2),
-      );
-    });
-  }
-
-  //metodo que chama a classe deleta conta
-  _alertaDeletarConta() {
-    // set up the buttons
-    Widget cancelButton = TextButton(
-      child: Text("Sim", style: TextStyle(color: Colors.blue),),
-      onPressed: () {
-        setState(() {
-
-          DeletarPerfil deletar = DeletarPerfil();
-          deletar.deletarFirebaseFirestore();
-          Navigator.of(context).pop();
-          Navigator.pushNamed(context, "/Login");
-
-        });
-      },
-    );
-
-    Widget continueButton = TextButton(
-      child: Text("Não", style: TextStyle(color: Colors.blue)),
-      onPressed: () {
-        Navigator.of(context).pop();
-      },
-    );
-
-    // set up the AlertDialog
-    AlertDialog alert = AlertDialog(
-      title: Text("Atenção"),
-      content: Text("Tem certeza que deseja apagar essa conta e todos os seus dados?"),
-      actions: [
-        cancelButton,
-        continueButton,
-      ],
-    );
-
-    // show the dialog
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return alert;
-      },
+  // Estilo padrão dos inputs baseados na sua UI
+  InputDecoration _inputDecoration(String label, IconData icon) {
+    return InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(color: Colors.white70),
+      prefixIcon: Icon(icon, color: Colors.white),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Colors.white38),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: corDestaqueLaranja),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: const BorderSide(color: Colors.redAccent),
+      ),
+      filled: true,
+      fillColor: Colors.transparent,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-      _controllerNome.text = nome;
-      _controllerTelefone.text = telefone;
-      _controllerEndereco.text = endereco;
-    return Scaffold(
-      appBar: AppBar(
-        flexibleSpace: FlexibleSpaceBar(
+    return WillPopScope(
+      // Evita que o usuário volte se o cadastro estiver incompleto
+      onWillPop: () async {
+        if (_cadastroIncompleto) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content:
+                  Text("Por favor, atualize seus dados antes de continuar."),
+              backgroundColor: Colors.orange,
+            ),
+          );
+          return false;
+        }
+        return true;
+      },
+      child: Scaffold(
+        backgroundColor: corPrincipalAzul,
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          title: const Text("Perfil", style: TextStyle(color: Colors.white)),
           centerTitle: true,
-          title: Text("Perfil"),
+          iconTheme: const IconThemeData(color: Colors.white),
+          automaticallyImplyLeading:
+              !_cadastroIncompleto, // Esconde botão voltar se incompleto
         ),
-        actions: [
-          Padding(
-            padding: EdgeInsets.all(4.0),
-            child: Image.asset("imagens/logo_mao.png", width: 60),
-          )
-        ],
-        backgroundColor: Color(0xFF129E09),
-      ),
-      body: Stack(
-        children: [
-          Container(
-            child: GestureDetector(
-              onTap: () {
-                FocusScope.of(context).requestFocus(new FocusNode());
-              },
-              child: Container(
-                child: Center(
-                  child: SingleChildScrollView(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.only(top: 1),
-                          child: _progressBarLinear ? LinearProgressIndicator(
-                            backgroundColor: Colors.green,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                                Theme.of(context).accentColor
-                            ),
-                          ):Center(),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.only(right: 8, left: 8),
-                          child: InputCustomizado(
-                            hint: "Nome",
-                            obscure: false,
-                            icon: Icon(Icons.person),
-                            controller: _controllerNome,
+        body: _carregando
+            ? Center(
+                child: CircularProgressIndicator(color: corDestaqueLaranja))
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(20),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Banner de Alerta Dinâmico
+                      if (_cadastroIncompleto)
+                        Container(
+                          margin: const EdgeInsets.only(bottom: 24),
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.orangeAccent.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orangeAccent),
                           ),
-                        ),
-                        Padding(
-                          padding: EdgeInsets.only(top: 8, right: 8, left: 8),
-                          child: InputCustomizadoAnuncio(
-                            controller: _controllerTelefone,
-                            hint: "Telefone",
-                            type: TextInputType.phone,
-                            inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
-                              TelefoneInputFormatter()
+                          child: const Row(
+                            children: [
+                              Icon(Icons.warning_amber_rounded,
+                                  color: Colors.orangeAccent),
+                              SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  "Atualização Necessária: Identificamos que seus dados não estão no nosso novo banco. Preencha abaixo para continuar usando o app.",
+                                  style: TextStyle(
+                                      color: Colors.white, fontSize: 13),
+                                ),
+                              ),
                             ],
                           ),
                         ),
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                          children: [
-                            Expanded(
-                              flex: 5,
-                              child: Container(
-                                padding: EdgeInsets.only(top: 8, right: 8, left: 8),
-                                child: InputDropdownButtonCustomizado(
-                                  value: _cidadeSelecionada,
-                                  hint: "Cidade",
-                                  items: _listaCidades,
-                                  icon: Icon(Icons.where_to_vote),
-                                  onChanged: (valor){
-                                    setState(() {
-                                      _cidadeSelecionada = valor;
-                                    });
-                                  },
-                                ),
-                              ),
+
+                      TextFormField(
+                        controller: _controllerNome,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _inputDecoration("Nome", Icons.person),
+                        validator: (valor) =>
+                            valor!.isEmpty ? "Preencha seu nome" : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _controllerTelefone,
+                        keyboardType: TextInputType.phone,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _inputDecoration("Telefone", Icons.phone),
+                        validator: (valor) =>
+                            valor!.isEmpty ? "Preencha seu telefone" : null,
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Row para Cidade e Estado lado a lado
+                      Row(
+                        children: [
+                          Expanded(
+                            flex: 2,
+                            child: TextFormField(
+                              controller: _controllerCidade,
+                              style: const TextStyle(color: Colors.white),
+                              decoration:
+                                  _inputDecoration("Cidade", Icons.location_on),
+                              validator: (valor) =>
+                                  valor!.isEmpty ? "Preencha a cidade" : null,
                             ),
-                            Expanded(
-                              flex: 3,
-                              child: Container(
-                                  padding: EdgeInsets.only(top: 8, right: 8),
-                                  child: InputDropdownButtonCustomizado(
-                                    value: _estadoSelecionado,
-                                    hint: "Estado",
-                                    items: _listaEstados,
-                                    icon: Icon(Icons.vpn_lock_rounded),
-                                    onChanged: (valor){
-                                      setState(() {
-                                        _estadoSelecionado = valor;
-                                        _carregarItensDropdownCidades();
-                                      });
-                                    },
-                                  )
-                              ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            flex: 1,
+                            child: DropdownButtonFormField<String>(
+                              value: _estadoSelecionado,
+                              dropdownColor: corPrincipalAzul,
+                              style: const TextStyle(color: Colors.white),
+                              decoration: _inputDecoration("Estado", Icons.map),
+                              items: _estados.map((String estado) {
+                                return DropdownMenuItem<String>(
+                                  value: estado,
+                                  child: Text(estado),
+                                );
+                              }).toList(),
+                              onChanged: (String? novoEstado) {
+                                setState(() {
+                                  _estadoSelecionado = novoEstado;
+                                });
+                              },
+                              validator: (valor) =>
+                                  valor == null ? "Selecione" : null,
                             ),
-                          ],
-                        ),
-                        Padding(
-                          padding: EdgeInsets.only(top: 8.0, right: 8, left: 8),
-                          child: InputCustomizado(
-                            hint: "Endereço",
-                            obscure: false,
-                            icon: Icon(Icons.map),
-                            controller: _controllerEndereco,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      TextFormField(
+                        controller: _controllerEndereco,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: _inputDecoration("Endereço", Icons.home),
+                        validator: (valor) =>
+                            valor!.isEmpty ? "Preencha seu endereço" : null,
+                      ),
+
+                      const SizedBox(height: 40),
+
+                      // Botão Atualizar
+                      ElevatedButton(
+                        onPressed: _atualizarPerfil,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: corDestaqueLaranja,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
                         ),
-                        Padding(
-                          padding: EdgeInsets.only(
-                              top: 16.0, right: 8, left: 8),
-                          child: InputButtonCustomizado(
-                            text: "Atualizar perfil",
-                            onPressed: (){
-                              _validarCampos();
-                            },
+                        child: const Text(
+                          "Atualizar perfil",
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+
+                      // Botão Deletar Conta
+                      ElevatedButton(
+                        onPressed: () {
+                          // Lógica para deletar conta
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[700],
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
                           ),
-                        ), 
-                        Padding(
-                            padding: EdgeInsets.only(top: 8, bottom: 16, left: 8, right: 8),
-                          child: ElevatedButton(
-                            child: Text("Deletar conta", style: TextStyle(fontSize: 20),),
-                            style: ElevatedButton.styleFrom(
-                              primary: Colors.deepOrange,
-                              padding: EdgeInsets.fromLTRB(32, 16, 32, 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25)
-                              )
-                            ),
-                            onPressed: (){
-                              _alertaDeletarConta();
-                            },
-                          ),
-                        )
-                      ],
-                    ),
+                        ),
+                        child: const Text(
+                          "Deletar conta",
+                          style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ),
-          )
-        ],
-      )
+      ),
     );
   }
 }

@@ -1,9 +1,10 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:page_transition/page_transition.dart';
 import 'package:pechinchar_online/models/Anuncio.dart';
@@ -14,7 +15,7 @@ import 'package:pechinchar_online/views/favoritos.dart';
 import 'package:pechinchar_online/views/meusAnuncios.dart';
 
 class Home extends StatefulWidget {
-  const Home({Key key}) : super(key: key);
+  const Home({Key? key}) : super(key: key);
 
   @override
   _HomeState createState() => _HomeState();
@@ -27,19 +28,22 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
     nonPersonalizedAds: true,
   );
 
-  BannerAd _anchoredBanner;
+  BannerAd? _anchoredBanner;
   bool _loadingAnchoredBanner = false;
 
-  bool _progresBarLinear;
-  TabController _tabController;
+  late bool _progresBarLinear;
+  late TabController _tabController;
   bool searchState = false;
   bool retornoMensagem = true;
   int favoritos = 0;
   int valorControllerTab = 0;
-  String valor;
+  late String valor;
   List<Anuncio> lista = [];
   final _debouncer = Debouncer(milliseconds: 800);
 
+  // Cores da nova identidade visual (Acomodeme)
+  final Color corPrincipalAzul = const Color(0xFF0B1C4B);
+  final Color corDestaqueLaranja = const Color(0xFFFF8C00);
 
   @override
   void initState() {
@@ -69,7 +73,9 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
 
   //responsavel por exibir o banner de anúncios
   Future<void> _createAnchoredBanner(BuildContext context) async {
-    final AnchoredAdaptiveBannerAdSize size =
+    if (kIsWeb) return;
+
+    final AnchoredAdaptiveBannerAdSize? size =
         await AdSize.getAnchoredAdaptiveBannerAdSize(
       Orientation.portrait,
       MediaQuery.of(context).size.width.truncate(),
@@ -83,10 +89,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
     final BannerAd banner = BannerAd(
       size: size,
       request: request,
-      adUnitId: Platform.isAndroid
-          //ca-app-pub-4141006277093451/3137185376 meu banner original
-          ? 'ca-app-pub-4141006277093451/3137185376'
-          : 'ca-app-pub-4141006277093451/3137185376',
+      adUnitId: 'ca-app-pub-4141006277093451/3137185376',
       listener: BannerAdListener(
         onAdLoaded: (Ad ad) {
           print('$BannerAd loaded.');
@@ -107,7 +110,8 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
 
   //retorna o id da compra
   Future<dynamic> retornarQuantidadeFavoritos() async {
-    User user = FirebaseAuth.instance.currentUser;
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
     String id = user.uid;
     FirebaseFirestore db = FirebaseFirestore.instance;
     db
@@ -127,121 +131,146 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
     });
   }
 
-  Future<dynamic> searchAnuncio({String search}) async {
+  Future<dynamic> searchAnuncio({String search = ""}) async {
     _progresBarLinear = true;
     setState(() {
       retornoMensagem = true;
+      lista.clear();
     });
 
     switch (valorControllerTab) {
       case 0:
-        setState(() {
-          valor = "imoveis";
-        });
+        valor = "imoveis";
         break;
       case 1:
-        setState(() {
-          valor = "produtos";
-        });
+        valor = "produtos";
         break;
       case 2:
-        setState(() {
-          valor = "moveis";
-        });
+        valor = "moveis";
         break;
       case 3:
-        setState(() {
-          valor = "supermercados";
-        });
+        valor = "supermercados";
         break;
       case 4:
-        setState(() {
-          valor = "restaurantes";
-        });
+        valor = "restaurantes";
         break;
       case 5:
-        setState(() {
-          valor = "transporte";
-        });
+        valor = "transporte";
         break;
       case 6:
-        setState(() {
-          valor = "servicos";
-        });
+        valor = "servicos";
         break;
     }
 
-    FirebaseFirestore db = FirebaseFirestore.instance;
-    QuerySnapshot querySnapshot = await db
-        .collection("anuncios")
-        .doc(valor)
-        .collection(valor)
-        .orderBy("impulsionar", descending: true)
-        .orderBy("data", descending: true)
-        .orderBy("horario", descending: true)
-        .get();
-    for (DocumentSnapshot dados in querySnapshot.docs) {
-      Anuncio anuncio = Anuncio();
-      if (dados.exists) {
-        setState(() {
-          anuncio.titulo = dados["titulo"];
-          anuncio.idUsuario = dados["idUsuario"];
-          anuncio.id = dados["id"];
-          anuncio.descricao = dados["descricao"];
-          anuncio.preco = dados["preco"];
-          anuncio.nome = dados["nome"];
-          anuncio.categoria = dados["categoria"];
-          anuncio.subCategoria = dados["subCategoria"];
-          anuncio.estado = dados["estado"];
-          anuncio.telefone = dados["telefone"];
-          anuncio.cidade = dados["cidade"];
-          anuncio.endereco = dados["endereco"];
-          anuncio.impulsionar = dados["impulsionar"];
-          anuncio.fotos = List<String>.from(dados["fotos"]);
-          anuncio.data = dados["data"];
-          anuncio.horario = dados["horario"];
-          if (search == null || search.isEmpty) {
-            setState(() {
-              lista.add(anuncio);
-              _progresBarLinear = false;
-            });
-          } else if (
-          anuncio.titulo.toLowerCase().contains(search) ||
-              anuncio.estado.toLowerCase().contains(search)) {
-            setState(() {
-              lista.add(anuncio);
-              _progresBarLinear = false;
-            });
-          }
-        });
+    try {
+      FirebaseFirestore db = FirebaseFirestore.instance;
+      QuerySnapshot querySnapshot =
+          await db.collection("anuncios").doc(valor).collection(valor).get();
+
+      final String searchTerm = search.toLowerCase();
+      final List<Anuncio> anunciosFiltrados = <Anuncio>[];
+
+      for (DocumentSnapshot dados in querySnapshot.docs) {
+        if (!dados.exists) continue;
+
+        Anuncio anuncio = Anuncio();
+        anuncio.titulo = dados["titulo"];
+        anuncio.idUsuario = dados["idUsuario"];
+        anuncio.id = dados["id"];
+        anuncio.descricao = dados["descricao"];
+        anuncio.preco = dados["preco"];
+        anuncio.nome = dados["nome"];
+        anuncio.categoria = dados["categoria"];
+        anuncio.subCategoria = dados["subCategoria"];
+        anuncio.estado = dados["estado"];
+        anuncio.telefone = dados["telefone"];
+        anuncio.cidade = dados["cidade"];
+        anuncio.endereco = dados["endereco"];
+        anuncio.impulsionar = dados["impulsionar"];
+        anuncio.fotos = List<String>.from(dados["fotos"]);
+        anuncio.data = dados["data"];
+        anuncio.horario = dados["horario"];
+
+        if (searchTerm.isEmpty ||
+            anuncio.titulo.toLowerCase().contains(searchTerm) ||
+            anuncio.estado.toLowerCase().contains(searchTerm)) {
+          anunciosFiltrados.add(anuncio);
+        }
       }
-    }
-    if (lista.length == 0) {
-      Future.delayed(Duration(seconds: 3)).then((value) {
-        setState(() {
-          retornoMensagem = false;
-          _progresBarLinear = false;
-        });
+
+      anunciosFiltrados.sort((Anuncio a, Anuncio b) {
+        final int impulsoA = int.tryParse(a.impulsionar) ?? 0;
+        final int impulsoB = int.tryParse(b.impulsionar) ?? 0;
+        if (impulsoA != impulsoB) {
+          return impulsoB.compareTo(impulsoA);
+        }
+
+        final DateTime dataA = _parseDataHora(a.data, a.horario);
+        final DateTime dataB = _parseDataHora(b.data, b.horario);
+        return dataB.compareTo(dataA);
       });
+
+      setState(() {
+        lista = anunciosFiltrados;
+        _progresBarLinear = false;
+        retornoMensagem = lista.isNotEmpty;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        retornoMensagem = false;
+        _progresBarLinear = false;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            "Nao foi possivel carregar os anuncios agora. Tente novamente.",
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+    }
+  }
+
+  DateTime _parseDataHora(String data, String horario) {
+    try {
+      final List<String> dataPartes = data.split('/');
+      final List<String> horaPartes = horario.split(':');
+
+      final int dia = int.parse(dataPartes[0]);
+      final int mes = int.parse(dataPartes[1]);
+      final int ano = int.parse(dataPartes[2]);
+
+      final int hora = int.parse(horaPartes[0]);
+      final int minuto = int.parse(horaPartes[1]);
+      final int segundo = horaPartes.length > 2 ? int.parse(horaPartes[2]) : 0;
+
+      return DateTime(ano, mes, dia, hora, minuto, segundo);
+    } catch (_) {
+      return DateTime.fromMillisecondsSinceEpoch(0);
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_loadingAnchoredBanner) {
+    if (!kIsWeb && !_loadingAnchoredBanner) {
       _loadingAnchoredBanner = true;
       _createAnchoredBanner(context);
     }
     return Scaffold(
         appBar: AppBar(
+          // 1. ISSO RESOLVE O ÍCONE DO MENU (HAMBÚRGUER) ESCURO
+          iconTheme: const IconThemeData(color: Colors.white),
+
           title: !searchState
-              ? Text("")
+              ? const Text("")
               : TextField(
-                  decoration: InputDecoration(
-                    icon: Icon(Icons.search),
+                  decoration: const InputDecoration(
+                    icon: Icon(Icons.search, color: Colors.white),
                     hintText: "Search ...",
                     hintStyle: TextStyle(color: Colors.white),
                   ),
+                  style: const TextStyle(color: Colors.white),
                   onChanged: (text) {
                     _debouncer.run(() {
                       String texto = text.toLowerCase();
@@ -251,10 +280,10 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                 ),
           actions: [
             Padding(
-              padding: EdgeInsets.all(8.0),
+              padding: const EdgeInsets.all(8.0),
               child: !searchState
                   ? IconButton(
-                      icon: Icon(Icons.search),
+                      icon: const Icon(Icons.search, color: Colors.white),
                       onPressed: () {
                         setState(() {
                           searchState = !searchState;
@@ -262,7 +291,7 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                       },
                     )
                   : IconButton(
-                      icon: Icon(Icons.cancel),
+                      icon: const Icon(Icons.cancel, color: Colors.white),
                       onPressed: () {
                         setState(() {
                           searchState = !searchState;
@@ -271,22 +300,20 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                     ),
             ),
             Padding(
-                padding: EdgeInsets.all(8.0),
+                padding: const EdgeInsets.all(8.0),
                 child: Row(
                   children: [
                     GestureDetector(
-                      child: Container(
-                        child: Image.asset(
-                          "imagens/icone_coracao_branco.png",
-                          height: 30,
-                          width: 30,
-                        ),
+                      child: const Icon(
+                        Icons.favorite_border,
+                        color: Colors.white,
+                        size: 30,
                       ),
                       onTap: () {
                         Navigator.push(
                             context,
                             PageTransition(
-                                child: Favoritos(),
+                                child: const Favoritos(),
                                 type: PageTransitionType.bottomToTop));
                       },
                     ),
@@ -297,96 +324,118 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                             radius: 10,
                             backgroundColor: Colors.red,
                             child: Text("" + favoritos.toString()),
-                          )
-                      )
+                          ))
                   ],
-                )
-            )
+                ))
           ],
-          backgroundColor: Color(0xFF129E09),
+          backgroundColor: corPrincipalAzul,
+          elevation: 0,
         ),
+
+        // 2. ISSO RESOLVE AS CORES ESCURAS DENTRO DO MENU LATERAL
         drawer: Drawer(
-            child: Stack(
-             children: [
-             ListView(
-              padding: EdgeInsets.zero,
-              children: [
-                Container(
-                  padding: EdgeInsets.only(top: 32, bottom: 16),
-                  decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                          colors: [Color(0xFF46b044), Color(0xff9cd981)],
-                          begin: Alignment.centerLeft,
-                          end: Alignment.centerRight)),
-                  child: Image.asset(
-                    "imagens/logo_mao.png",
-                    width: 150,
-                    height: 150,
-                  ),
+          backgroundColor: corPrincipalAzul, // Fundo do menu inteiro azul naval
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              Container(
+                padding: const EdgeInsets.only(top: 56, bottom: 16),
+                alignment: Alignment.center,
+                child: Column(
+                  children: [
+                    Text(
+                      "Pechinchar",
+                      style: GoogleFonts.montserrat(
+                        color: Colors.white,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      "ONLINE",
+                      style: GoogleFonts.montserrat(
+                        color: corDestaqueLaranja,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 4,
+                      ),
+                    ),
+                  ],
                 ),
-                Divider(
-                  color: Colors.grey[600],
+              ),
+              Divider(
+                color: Colors.white24, // Divisor clarinho e sutil
+              ),
+              const SizedBox(height: 10),
+              ListTile(
+                leading: const Icon(
+                  Icons.account_circle,
+                  color: Colors.white, // Ícones brancos
                 ),
-                SizedBox(
-                  height: 10,
+                title: const Text(
+                  "Perfil",
+                  style: TextStyle(
+                      color: Colors.white, fontSize: 16), // Textos brancos
                 ),
-                ListTile(
-                  leading: Icon(
-                    Icons.account_circle,
-                    color: Colors.black,
-                  ),
-                  title: Text("Perfil"),
-                  onTap: () {
-                    Navigator.push(
-                        context,
-                        PageTransition(
-                            child: Perfil(),
-                            type: PageTransitionType.leftToRight));
-                  },
+                onTap: () {
+                  Navigator.push(
+                      context,
+                      PageTransition(
+                          child: const Perfil(),
+                          type: PageTransitionType.leftToRight));
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.campaign,
+                  color: Colors.white,
                 ),
-                ListTile(
-                  leading: Image.asset(
-                    "imagens/logo_anunciar.png",
-                    width: 30,
-                    height: 30,
-                  ),
-                  title: Text("Anunciar Produtos"),
-                  onTap: () {
-                    Navigator.push(
-                        context,
-                        PageTransition(
-                            child: MeusAnuncios(),
-                            type: PageTransitionType.bottomToTop));
-                  },
+                title: const Text(
+                  "Anunciar Produtos",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
                 ),
-                ListTile(
-                  leading: Image.asset(
-                    "imagens/icone_coracao.png",
-                    height: 30,
-                    width: 30,
-                  ),
-                  title: Text("Favoritos"),
-                  onTap: () {
-                    Navigator.push(
-                        context,
-                        PageTransition(
-                            child: Favoritos(),
-                            type: PageTransitionType.bottomToTop));
-                  },
+                onTap: () {
+                  Navigator.push(
+                      context,
+                      PageTransition(
+                          child: MeusAnuncios(),
+                          type: PageTransitionType.bottomToTop));
+                },
+              ),
+              ListTile(
+                leading: const Icon(
+                  Icons.favorite,
+                  color: Colors.white,
                 ),
-                ListTile(
-                  leading: Icon(Icons.cancel, color: Colors.black),
-                  title: Text("Sair"),
-                  onTap: () {
-                    FirebaseAuth auth = FirebaseAuth.instance;
-                    auth.signOut();
-                    Navigator.pushReplacementNamed(context, "/Login");
-                  },
-                )
-              ],
-            ),
-          ],
-        )),
+                title: const Text(
+                  "Favoritos",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onTap: () {
+                  Navigator.push(
+                      context,
+                      PageTransition(
+                          child: const Favoritos(),
+                          type: PageTransitionType.bottomToTop));
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.exit_to_app, color: Colors.white),
+                title: const Text(
+                  "Sair",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+                onTap: () {
+                  FirebaseAuth auth = FirebaseAuth.instance;
+                  auth.signOut();
+                  Navigator.pushReplacementNamed(context, "/Login");
+                },
+              )
+            ],
+          ),
+        ),
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -397,93 +446,77 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                 style: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.bold,
-                    color: Colors.black),
+                    color: Colors
+                        .white), // Texto alterado para branco para contraste
               ),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF46b044),
-                    const Color(0xff9cd981),
-                  ],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
+                color: corPrincipalAzul, // Alterado para o azul principal
               ),
             ),
             Container(
               padding: EdgeInsets.only(left: 8, top: 8),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFF46b044),
-                    const Color(0xff9cd981),
-                  ],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
+                color: corPrincipalAzul, // Alterado para o azul principal
               ),
               child: TabBar(
                 isScrollable: true,
-                labelColor: Colors.black,
+                labelColor: Colors.white, // Rótulo ativo em branco
+                unselectedLabelColor:
+                    Colors.white70, // Rótulos inativos levemente transparentes
                 indicatorWeight: 4,
                 labelStyle:
                     TextStyle(fontSize: 12, fontWeight: FontWeight.normal),
                 controller: _tabController,
-                indicatorColor: Colors.black,
+                indicatorColor:
+                    corDestaqueLaranja, // Linha indicadora agora é laranja
                 tabs: <Widget>[
                   Tab(
-                    icon: Image.asset(
-                      "imagens/logo_imoveis.png",
-                      width: 30,
-                      height: 30,
+                    icon: Icon(
+                      Icons.apartment, // ou Icons.home
+                      size: 30,
                     ),
                     text: "Imóveis",
                   ),
                   Tab(
-                    icon: Image.asset(
-                      "imagens/logo_produtos.png",
-                      width: 30,
-                      height: 30,
+                    icon: Icon(
+                      Icons.shopping_bag, // ou Icons.inventory_2
+                      size: 30,
                     ),
                     text: "Produtos",
                   ),
                   Tab(
-                    icon: Image.asset(
-                      "imagens/logo_moveis.png",
-                      width: 30,
-                      height: 30,
+                    icon: Icon(
+                      Icons.chair, // ou Icons.bed
+                      size: 30,
                     ),
                     text: "Móveis",
                   ),
                   Tab(
-                    icon: Image.asset(
-                      "imagens/logo_supermercados.png",
-                      width: 30,
-                      height: 30,
+                    icon: Icon(
+                      Icons.local_grocery_store, // ou Icons.shopping_cart
+                      size: 30,
                     ),
                     text: "Supermercados",
                   ),
                   Tab(
-                    icon: Image.asset(
-                      "imagens/logo_restaurante.png",
-                      width: 40,
-                      height: 30,
+                    icon: Icon(
+                      Icons.restaurant,
+                      size: 30,
                     ),
                     text: "Restaurantes",
                   ),
                   Tab(
-                    icon: Image.asset(
-                      "imagens/logo_transporte.png",
-                      width: 30,
-                      height: 30,
+                    icon: Icon(
+                      Icons.directions_car, // ou Icons.commute
+                      size: 30,
                     ),
-                    text: "Transpotes",
+                    text:
+                        "Transportes", // Corrigido o erro de digitação original "Transpotes"
                   ),
                   Tab(
-                    icon: Image.asset(
-                      "imagens/logo_servicos.png",
-                      width: 30,
-                      height: 30,
+                    icon: Icon(
+                      Icons.handyman, // ou Icons.build / Icons.design_services
+                      size: 30,
                     ),
                     text: "Serviços",
                   )
@@ -522,24 +555,47 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                                             SizedBox(
                                               width: 120,
                                               height: 120,
-                                              child: CachedNetworkImage(
-                                                imageUrl: lista[index].fotos[0],
-                                                imageBuilder: (context, imageProvider) => Container(
-                                                  decoration: BoxDecoration(
-                                                    image: DecorationImage(
-                                                        image: imageProvider,
-                                                        fit: BoxFit.contain,
+                                              child: lista[index]
+                                                      .fotos
+                                                      .isNotEmpty
+                                                  ? CachedNetworkImage(
+                                                      imageUrl:
+                                                          lista[index].fotos[0],
+                                                      imageBuilder: (context,
+                                                              imageProvider) =>
+                                                          Container(
+                                                        decoration:
+                                                            BoxDecoration(
+                                                          image:
+                                                              DecorationImage(
+                                                            image:
+                                                                imageProvider,
+                                                            fit: BoxFit.contain,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      placeholder:
+                                                          (context, url) =>
+                                                              Transform.scale(
+                                                        scale: 0.3,
+                                                        child:
+                                                            CircularProgressIndicator(
+                                                          color:
+                                                              corDestaqueLaranja, // Cor do loading alterada para laranja
+                                                        ),
+                                                      ),
+                                                      errorWidget: (context,
+                                                              url, error) =>
+                                                          const Icon(
+                                                              Icons.error),
+                                                    )
+                                                  : Container(
+                                                      color: Colors.grey[200],
+                                                      child: Icon(
+                                                        Icons.image,
+                                                        color: Colors.grey[500],
+                                                      ),
                                                     ),
-                                                  ),
-                                                ),
-                                                placeholder: (context, url) => Transform.scale(
-                                                  scale: 0.3,
-                                                  child: CircularProgressIndicator(
-                                                    color: Color(0xff0f530f),
-                                                  ),
-                                                ),
-                                                errorWidget: (context, url, error) => Icon(Icons.error),
-                                              ),
                                             ),
                                             Expanded(
                                               child: Padding(
@@ -605,18 +661,18 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                   ),
                   Center(
                       child: Column(
-                        children: [
-                         Container(
-                          padding: EdgeInsets.only(top: 8),
-                          child: _progresBarLinear
-                              ? CircularProgressIndicator(
-                                  color: Color(0xff0f530f),
-                                )
-                              : Center(),
+                    children: [
+                      Container(
+                        padding: EdgeInsets.only(top: 8),
+                        child: _progresBarLinear
+                            ? CircularProgressIndicator(
+                                color:
+                                    corDestaqueLaranja, // Cor do loading alterada para laranja
+                              )
+                            : Center(),
                       ),
                     ],
-                   )
-                  ),
+                  )),
                 ],
               ),
             ),
@@ -625,9 +681,9 @@ class _HomeState extends State<Home> with SingleTickerProviderStateMixin {
                 if (_anchoredBanner != null)
                   Container(
                     color: Colors.white,
-                    width: _anchoredBanner.size.width.toDouble(),
-                    height: _anchoredBanner.size.height.toDouble(),
-                    child: AdWidget(ad: _anchoredBanner),
+                    width: _anchoredBanner!.size.width.toDouble(),
+                    height: _anchoredBanner!.size.height.toDouble(),
+                    child: AdWidget(ad: _anchoredBanner!),
                   ),
               ],
             )

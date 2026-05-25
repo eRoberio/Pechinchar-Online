@@ -6,14 +6,13 @@ import 'package:pechinchar_online/views/Splash.dart';
 import 'package:pechinchar_online/views/meusAnuncios.dart';
 
 
-class HomeModule extends Module{
-
+class HomeModule extends Module {
   @override
-  List<ModularRoute> get routes => [
-    ChildRoute("/", child: (_, args) => Splash()),
-    ChildRoute("/Login", child: (_, args) => Login()),
-    ChildRoute("/Cadastro", child: (_, args) => Cadastro()),
-    ChildRoute("/Home", child: (_, args) => Home()),
-    ChildRoute("/MeusAnuncios", child: (_, args) => MeusAnuncios()),
-  ];
+  void routes(RouteManager r) {
+    r.child("/", child: (context) => Splash());
+    r.child("/Login", child: (context) => Login());
+    r.child("/Cadastro", child: (context) => Cadastro());
+    r.child("/Home", child: (context) => Home());
+    r.child("/MeusAnuncios", child: (context) => MeusAnuncios());
+  }
 }

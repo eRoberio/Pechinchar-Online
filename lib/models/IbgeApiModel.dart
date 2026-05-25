@@ -3,7 +3,7 @@ import 'dart:convert';
 class IbgeApiModel {
   final String nome;
 
-  IbgeApiModel({this.nome});
+  IbgeApiModel({required this.nome});
 
   Map<String, dynamic> toMap() {
     return {
@@ -12,8 +12,6 @@ class IbgeApiModel {
   }
 
   static IbgeApiModel fromMap(Map<String, dynamic> map) {
-    if (map == null) return null;
-
     return IbgeApiModel(
       nome: map['nome'],
     );

@@ -3,8 +3,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 
 class DeletarPerfil {
 
-  deletarFirebaseFirestore(){
-    User user = FirebaseAuth.instance.currentUser;
+
+  deletarFirebaseFirestore() {
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user == null) return;
     String id = user.uid;
 
     FirebaseFirestore deletar = FirebaseFirestore.instance;
@@ -14,8 +16,7 @@ class DeletarPerfil {
   }
 
   deletarFirebaseAuth() {
-    User user = FirebaseAuth.instance.currentUser;
-    user.delete();
-
+    User? user = FirebaseAuth.instance.currentUser;
+    user?.delete();
   }
 }

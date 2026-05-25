@@ -2,22 +2,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Anuncio{
 
-  String _id;
-  String _impulsionar;
-  String _idUsuario;
-  String _categoria;
-  String _subCategoria;
-  String _titulo;
-  String _preco;
-  String _nome;
-  String _telefone;
-  String _descricao;
-  String _cidade;
-  String _estado;
-  String _endereco;
-  List<String> _fotos;
-  String _data;
-  String _horario;
+  late String _id;
+  late String _impulsionar;
+  late String _idUsuario;
+  late String _categoria;
+  late String _subCategoria;
+  late String _titulo;
+  late String _preco;
+  late String _nome;
+  late String _telefone;
+  late String _descricao;
+  late String _cidade;
+  late String _estado;
+  late String _endereco;
+  late List<String> _fotos;
+  late String _data;
+  late String _horario;
 
   Anuncio();
 

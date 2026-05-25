@@ -1,479 +1,254 @@
-import 'dart:io';
-
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:carousel_pro/carousel_pro.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_dynamic_links/firebase_dynamic_links.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
-import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:pechinchar_online/customizados/inputButtonCustomizados.dart';
 import 'package:pechinchar_online/models/Anuncio.dart';
-import 'package:pechinchar_online/views/perfilAnunciante.dart';
-import 'package:share/share.dart';
-import 'package:url_launcher/url_launcher.dart';
+// Certifique-se de ter o pacote url_launcher no pubspec.yaml para os botões de contato
+// import 'package:url_launcher/url_launcher.dart';
 
 class DetalhesAnuncio extends StatefulWidget {
+  final Anuncio anuncio;
+  final bool
+      exibirBotoesContato; // Usado para esconder contato se for o próprio anúncio
 
-  Anuncio anuncio;
-  bool liberaPerfil;
-  DetalhesAnuncio(this.anuncio, this.liberaPerfil);
+  const DetalhesAnuncio(this.anuncio, this.exibirBotoesContato, {Key? key})
+      : super(key: key);
 
   @override
   _DetalhesAnuncioState createState() => _DetalhesAnuncioState();
 }
 
 class _DetalhesAnuncioState extends State<DetalhesAnuncio> {
+  int _imagemAtual = 0;
+  final Color corPrincipalAzul = const Color(0xFF0B1C4B);
+  final Color corDestaqueLaranja = const Color(0xFFFF8C00);
 
-  String _linkMessage;
-
-  static final AdRequest request = AdRequest(
-    keywords: <String>['foo', 'bar'],
-    contentUrl: 'http://foo.com/bar.html',
-    nonPersonalizedAds: true,
-  );
-
-  BannerAd _anchoredBanner;
-  bool _loadingAnchoredBanner = false;
-
-  Anuncio _anuncio;
-  bool _liberarPerfil;
-
-  List<Widget> _getListaImagens(){
-
-    List<String> listaUrlImagens = _anuncio.fotos;
-    return listaUrlImagens.map((url){
-      return CachedNetworkImage(
-        imageUrl: url,
-        imageBuilder: (context, imageProvider) => Container(
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: imageProvider,
-              fit: BoxFit.contain,
-            ),
-          ),
-        ),
-        placeholder: (context, url) => Transform.scale(
-          scale: 0.3,
-          child: CircularProgressIndicator(
-            color: Color(0xff0f530f),
-          ),
-        ),
-        errorWidget: (context, url, error) => Icon(Icons.error),
-      );
-    }).toList();
-
+  // Método placeholder para o url_launcher
+  void _abrirWhatsApp() async {
+    // String url = "whatsapp://send?phone=+55${widget.anuncio.telefone}&text=Olá, vi seu anúncio: ${widget.anuncio.titulo}";
+    // if (await canLaunchUrl(Uri.parse(url))) { await launchUrl(Uri.parse(url)); }
+    print("Abrir WhatsApp: ${widget.anuncio.telefone}");
   }
 
-  Future<void>_ligarTelefone(String telefone) async {
-
-    if( await canLaunch("tel:$telefone") ){
-      await launch("tel:$telefone", forceWebView: false, forceSafariVC: false);
-    }else{
-      print("Não pode fazer a ligação");
-    }
-  }
-
-  Future<void>_abrirWhatstapp(String telefone) async {
-    var whatsappUrl = "whatsapp://send?phone=+55$telefone";
-    if(await canLaunch(whatsappUrl)){
-      await launch(whatsappUrl, forceSafariVC: false, forceWebView: false);
-    }else
-      throw 'Esse número $whatsappUrl não existe no WhatsApp';
-  }
-
-  FToast fToast;
-  @override
-  void initState() {
-    super.initState();
-    fToast = FToast();
-    fToast.init(context);
-    _anuncio = widget.anuncio;
-    _liberarPerfil = widget.liberaPerfil;
-  }
-  @override
-  void dispose() {
-    super.dispose();
-    _anchoredBanner?.dispose();
-  }
-
-  //responsavel por exibir o banner de anúncios
-  Future<void> _createAnchoredBanner(BuildContext context) async {
-    final AnchoredAdaptiveBannerAdSize size =
-    await AdSize.getAnchoredAdaptiveBannerAdSize(
-      Orientation.portrait,
-      MediaQuery.of(context).size.width.truncate(),
-    );
-
-    if (size == null) {
-      print('Unable to get height of anchored banner.');
-      return;
-    }
-
-    final BannerAd banner = BannerAd(
-      size: size,
-      request: request,
-      adUnitId: Platform.isAndroid
-      //ca-app-pub-4141006277093451/3137185376 meu banner original
-          ? 'ca-app-pub-4141006277093451/3137185376'
-          : 'ca-app-pub-4141006277093451/3137185376',
-      listener: BannerAdListener(
-        onAdLoaded: (Ad ad) {
-          print('$BannerAd loaded.');
-          setState(() {
-            _anchoredBanner = ad as BannerAd;
-          });
-        },
-        onAdFailedToLoad: (Ad ad, LoadAdError error) {
-          print('$BannerAd failedToLoad: $error');
-          ad.dispose();
-        },
-        onAdOpened: (Ad ad) => print('$BannerAd onAdOpened.'),
-        onAdClosed: (Ad ad) => print('$BannerAd onAdClosed.'),
-      ),
-    );
-    return banner.load();
-  }
-
-
-  _adicionarFavorito(){
-    var id = FirebaseAuth.instance.currentUser;
-    String idUsuario = id.uid;
-
-    final firestoreInstance = FirebaseFirestore.instance;
-    firestoreInstance
-        .collection("meus_favoritos")
-        .doc(idUsuario)
-        .collection("favoritos")
-        .doc(_anuncio.id)
-        .set(_anuncio.toMap()).then((value){
-
-      Widget toast = Container(
-        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(25.0),
-          color: Colors.black45,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 12.0,
-            ),
-            Text("Adicionado como favorito com sucesso!",
-                style: TextStyle(color: Colors.white, fontSize: 20)),
-          ],
-        ),
-      );
-
-      fToast.showToast(
-        child: toast,
-        gravity: ToastGravity.TOP,
-        toastDuration: Duration(seconds: 2),
-      );
-    }
-    );
-  }
-  Future<void> _createDynamicLink(bool short) async {
-
-    final DynamicLinkParameters parameters = DynamicLinkParameters(
-      uriPrefix: 'https://pechinchar.page.link',
-      link: Uri.parse('https://pechinchar.page.link/${_anuncio.id}/'),
-      androidParameters: AndroidParameters(
-        packageName: 'icm.technology.mobile.pechinchar_online',
-        minimumVersion: 0,
-      ),
-      dynamicLinkParametersOptions: DynamicLinkParametersOptions(
-        shortDynamicLinkPathLength: ShortDynamicLinkPathLength.short,
-      ),
-      iosParameters: IosParameters(
-        bundleId: 'com.google.FirebaseCppDynamicLinksTestApp.dev',
-        minimumVersion: '0',
-      ),
-    );
-
-    Uri url;
-    if (short) {
-      final ShortDynamicLink shortLink = await parameters.buildShortLink();
-      url = shortLink.shortUrl;
-    } else {
-      url = await parameters.buildUrl();
-    }
-
-    setState(() {
-      _linkMessage = url.toString();
-    });
-  }
-
-  _onShare() async {
-   await _createDynamicLink(true);
-
-      await Share.share(_linkMessage, subject: ""+ _anuncio.titulo);
+  void _ligarTelefone() async {
+    // String url = "tel:${widget.anuncio.telefone}";
+    // if (await canLaunchUrl(Uri.parse(url))) { await launchUrl(Uri.parse(url)); }
+    print("Ligar para: ${widget.anuncio.telefone}");
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_loadingAnchoredBanner) {
-      _loadingAnchoredBanner = true;
-      _createAnchoredBanner(context);
-    }
     return Scaffold(
-      appBar: AppBar(
-        flexibleSpace: FlexibleSpaceBar(
-          centerTitle: true,
-          title: Text("Detalhes do anuncio"),
-        ),
-        actions: [
-          Padding(
-            padding: EdgeInsets.all(4.0),
-            child: Image.asset("imagens/logo_mao.png", width: 60),
-          )
-        ],
-        backgroundColor: Color(0xFF129E09),
-      ),
-      body: Stack(
-        children: [
-        ListView(
-          children: [
-          Padding(padding: EdgeInsets.only(top: 2)),
-          SizedBox(
-            height: 250,
-            child: Carousel(
-              images: _getListaImagens(),
-              dotSize: 8,
-              dotBgColor: Colors.transparent,
-              dotColor: Colors.white,
-              autoplay: false,
-            ),
-          ),
-          Container(
-            padding: EdgeInsets.only(top: 16, right: 16, left: 16,),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        "R\$ ${_anuncio.preco}",
-                        style: TextStyle(
-                          fontSize: 32,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                   GestureDetector(
-                     onTap: () {
-                       _onShare();
-                        },
-                       child: Column(
-                         crossAxisAlignment: CrossAxisAlignment.center,
-                         children: [
-                           Image.asset("imagens/compartilhar.png", width: 20, height: 20,),
-                           Text(
-                             "Compartilhar",
-                             style: TextStyle(
-                               fontSize: 14,
-                             ),
-                           )
-                         ],
-                       )
-                   )
-                  ],
-                ),
-              Padding(padding: EdgeInsets.only(top: 8)),
-              Row(
+      backgroundColor: Colors
+          .grey[50], // Fundo levemente cinza para destacar os cards brancos
+      body: CustomScrollView(
+        slivers: <Widget>[
+          // 1. App Bar Expansível com Carrossel de Imagens
+          SliverAppBar(
+            expandedHeight: 300.0,
+            pinned: true,
+            backgroundColor: corPrincipalAzul,
+            iconTheme: const IconThemeData(color: Colors.white),
+            flexibleSpace: FlexibleSpaceBar(
+              background: Stack(
                 children: [
-                  Expanded(
-                    child: Text(
-                      "${_anuncio.titulo}",
-                      style: TextStyle(
-                          fontSize: 25,
-                          fontWeight: FontWeight.w400
-                      ),
-                    ),
-                  ),
-                  Column(
-                    children: [
-                      Text(_anuncio.data),
-                      Text(_anuncio.horario)
-                    ],
-                  )
-                ],
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Divider(),
-              ),
-              Text(
-                "Descrição",
-                style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold
-                ),
-              ),
-              Text(
-                "${_anuncio.descricao}",
-                style: TextStyle(
-                    fontSize: 18
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.symmetric(vertical: 8),
-                child: Divider(),
-              ),
-              Text(
-                "Anunciante",
-                style: TextStyle(
-                    fontSize: 14,
-                    //fontWeight: FontWeight.bold
-                ),
-              ),
-              Padding(
-                padding: EdgeInsets.only(bottom: 8),
-                child: Text(
-                  "${_anuncio.nome}",
-                  style: TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.bold
-                  ),
-                ),
-              ),
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.start,
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        "${_anuncio.endereco + ", " + _anuncio.cidade + "-" + _anuncio.estado}",
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold
+                  PageView.builder(
+                    itemCount: widget.anuncio.fotos.length,
+                    onPageChanged: (index) {
+                      setState(() {
+                        _imagemAtual = index;
+                      });
+                    },
+                    itemBuilder: (context, index) {
+                      return CachedNetworkImage(
+                        imageUrl: widget.anuncio.fotos[index],
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Center(
+                          child: CircularProgressIndicator(
+                              color: corDestaqueLaranja),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Expanded(
-                      flex: 4,
-                     child: Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       mainAxisAlignment: MainAxisAlignment.start,
-                       children: [
-                         Text("Contato"),
-                            Padding(
-                             padding: EdgeInsets.only(bottom: 8),
-                             child: Text(
-                               "${_anuncio.telefone}",
-                               style: TextStyle(
-                                   fontSize: 18, fontWeight: FontWeight.bold
-                               ),
-                             ),
-                           ),
-                       ],
-                     ),
-                    ),
-                    if(_liberarPerfil == true)Expanded(
-                      flex: 1,
-                      child: GestureDetector(
-                        onTap: (){
-                          Navigator.push(context, MaterialPageRoute(builder: (context) => PerfilAnunciante(widget.anuncio)));
-                        },
-                        child: Text("Ver perfil",
-                          style: TextStyle(
-                              fontSize: 16,
-                              color: Color(0xff0f530f)
+                        errorWidget: (context, url, error) =>
+                            const Icon(Icons.error),
+                      );
+                    },
+                  ),
+                  // Indicador de Páginas (Bolinhas)
+                  Positioned(
+                    bottom: 16,
+                    left: 0,
+                    right: 0,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: List.generate(
+                        widget.anuncio.fotos.length,
+                        (index) => Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          width: _imagemAtual == index ? 12 : 8,
+                          height: _imagemAtual == index ? 12 : 8,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: _imagemAtual == index
+                                ? corDestaqueLaranja
+                                : Colors.white.withOpacity(0.6),
                           ),
                         ),
-                      )
-                    )
-                  ],
-                )
-             ],
-            ),
-          ),
-          Divider(),
-          Center(
-            child: Text("Fale com o anunciante"),
-          ),
-          Row(
-            children: [
-              Expanded(
-                child: GestureDetector(
-                  child: Container(
-                    child: Text(
-                      "Ligar",
-                      style: TextStyle(
-                          color: Color(0xff0f530f),
-                          fontSize: 20
                       ),
                     ),
-                    padding: EdgeInsets.all(16),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      //color: temaPadrao.primaryColor,
-                        borderRadius: BorderRadius.circular(30)
-                    ),
                   ),
-                  onTap: (){
-                    _ligarTelefone( _anuncio.telefone );
-                  },
+                ],
+              ),
+            ),
+          ),
+
+          // 2. Conteúdo do Anúncio
+          SliverList(
+            delegate: SliverChildListDelegate([
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    bottomLeft: Radius.circular(20),
+                    bottomRight: Radius.circular(20),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "R\$ ${widget.anuncio.preco}",
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        color: corDestaqueLaranja,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      widget.anuncio.titulo,
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: corPrincipalAzul,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Icon(Icons.location_on_outlined,
+                            color: Colors.grey[600], size: 20),
+                        const SizedBox(width: 4),
+                        Expanded(
+                          child: Text(
+                            "${widget.anuncio.cidade} - ${widget.anuncio.estado}",
+                            style: TextStyle(
+                                fontSize: 14, color: Colors.grey[700]),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Icon(Icons.access_time_outlined,
+                            color: Colors.grey[600], size: 20),
+                        const SizedBox(width: 4),
+                        Text(
+                          "Publicado em ${widget.anuncio.data} às ${widget.anuncio.horario}",
+                          style:
+                              TextStyle(fontSize: 14, color: Colors.grey[700]),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              Expanded(
-                child: GestureDetector(
-                  child: Container(
-                    child: Text(
-                      "WhatsApp",
+              const SizedBox(height: 12),
+
+              // 3. Descrição
+              Container(
+                padding: const EdgeInsets.all(20),
+                color: Colors.white,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Descrição",
                       style: TextStyle(
-                          color: Color(0xff0f530f),
-                          fontSize: 20
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: corPrincipalAzul,
                       ),
                     ),
-                    padding: EdgeInsets.all(16),
-                    alignment: Alignment.center,
-                    decoration: BoxDecoration(
-                      //color: temaPadrao.primaryColor,
-                        borderRadius: BorderRadius.circular(30)
+                    const SizedBox(height: 12),
+                    Text(
+                      widget.anuncio.descricao,
+                      style: const TextStyle(fontSize: 16, height: 1.5),
                     ),
-                  ),
-                  onTap: (){
-                    _abrirWhatstapp( _anuncio.telefone );
-                  },
+                  ],
                 ),
-              )
-            ],
+              ),
+              const SizedBox(
+                  height:
+                      100), // Espaço extra para não esconder conteúdo atrás da bottom bar
+            ]),
           ),
-            Padding(
-            padding: EdgeInsets.only( right: 16, left: 16, bottom: 70),
-            child: InputButtonCustomizado(
-              text: "Adicionar aos favoritos",
-              onPressed: (){
-                _adicionarFavorito();
-              },
-            ),
-          ),
-         ],
-        ),
-          Positioned(
-            bottom: 0.0,
-              child: Column(
-               children: [
-              if (_anchoredBanner != null)
-                Container(
-                  color: Colors.white,
-                  width: _anchoredBanner.size.width.toDouble(),
-                  height: _anchoredBanner.size.height.toDouble(),
-                  child: AdWidget(ad: _anchoredBanner),
-                ),
-            ],
-          )
-          )
-      ],
+        ],
       ),
+
+      // 4. Bottom Bar Fixa para Contato (Call to Action)
+      bottomNavigationBar: widget.exibirBotoesContato
+          ? Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _ligarTelefone,
+                        icon: const Icon(Icons.phone),
+                        label: const Text("Ligar"),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: corPrincipalAzul,
+                          side: BorderSide(color: corPrincipalAzul),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 2,
+                      child: ElevatedButton.icon(
+                        onPressed: _abrirWhatsApp,
+                        icon: const Icon(Icons.chat),
+                        label: const Text("WhatsApp",
+                            style: TextStyle(
+                                fontSize: 16, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[600],
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : const SizedBox.shrink(),
     );
   }
 }

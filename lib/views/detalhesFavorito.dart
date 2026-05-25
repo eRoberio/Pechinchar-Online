@@ -1,44 +1,44 @@
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:carousel_pro/carousel_pro.dart';
+import 'package:carousel_slider/carousel_slider.dart';
 import 'package:firebase_dynamic_links/firebase_dynamic_links.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:pechinchar_online/models/Anuncio.dart';
 import 'package:pechinchar_online/views/perfilAnunciante.dart';
-import 'package:share/share.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-
 class DetalhesFavorito extends StatefulWidget {
-  Anuncio anuncio;
-
-  DetalhesFavorito(this.anuncio);
+  final Anuncio anuncio;
+  const DetalhesFavorito(this.anuncio, {Key? key}) : super(key: key);
 
   @override
-  _DetalhesFavoritoState createState() => _DetalhesFavoritoState();
+  State<DetalhesFavorito> createState() => _DetalhesFavoritoState();
 }
 
 class _DetalhesFavoritoState extends State<DetalhesFavorito> {
-  String _linkMessage;
-
+  late String _linkMessage;
   static final AdRequest request = AdRequest(
     keywords: <String>['foo', 'bar'],
     contentUrl: 'http://foo.com/bar.html',
     nonPersonalizedAds: true,
   );
-
-  BannerAd _anchoredBanner;
+  BannerAd? _anchoredBanner;
   bool _loadingAnchoredBanner = false;
+  late Anuncio _anuncio;
+  late FToast fToast;
 
-  Anuncio _anuncio;
+  // Cores da nova identidade visual (Acomodeme)
+  final Color corPrincipalAzul = const Color(0xFF0B1C4B);
+  final Color corDestaqueLaranja = const Color(0xFFFF8C00);
 
-  List<Widget> _getListaImagens(){
-
+  List<Widget> _getListaImagens() {
     List<String> listaUrlImagens = _anuncio.fotos;
-    return listaUrlImagens.map((url){
+    return listaUrlImagens.map((url) {
       return CachedNetworkImage(
         imageUrl: url,
         imageBuilder: (context, imageProvider) => Container(
@@ -52,33 +52,31 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
         placeholder: (context, url) => Transform.scale(
           scale: 0.3,
           child: CircularProgressIndicator(
-            color: Color(0xff0f530f),
+            color: corDestaqueLaranja, // Cor de loading atualizada
           ),
         ),
         errorWidget: (context, url, error) => Icon(Icons.error),
       );
     }).toList();
-
   }
 
   _ligarTelefone(String telefone) async {
-
-    if( await canLaunch("tel:$telefone") ){
+    if (await canLaunch("tel:$telefone")) {
       await launch("tel:$telefone");
-    }else{
+    } else {
       print("Não pode fazer a ligação");
     }
   }
 
   _abrirWhatstapp(String telefone) async {
     var whatsappUrl = "whatsapp://send?phone=+55$telefone";
-    if(await canLaunch(whatsappUrl)){
+    if (await canLaunch(whatsappUrl)) {
       await launch(whatsappUrl);
-    }else
+    } else {
       throw 'Esse número $whatsappUrl não existe no WhatsApp';
+    }
   }
 
-  FToast fToast;
   @override
   void initState() {
     super.initState();
@@ -86,16 +84,18 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
     fToast.init(context);
     _anuncio = widget.anuncio;
   }
+
   @override
   void dispose() {
     super.dispose();
     _anchoredBanner?.dispose();
   }
 
-  //responsavel por exibir o banner de anúncios
   Future<void> _createAnchoredBanner(BuildContext context) async {
-    final AnchoredAdaptiveBannerAdSize size =
-    await AdSize.getAnchoredAdaptiveBannerAdSize(
+    if (kIsWeb) return;
+
+    final AnchoredAdaptiveBannerAdSize? size =
+        await AdSize.getAnchoredAdaptiveBannerAdSize(
       Orientation.portrait,
       MediaQuery.of(context).size.width.truncate(),
     );
@@ -109,7 +109,6 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
       size: size,
       request: request,
       adUnitId: Platform.isAndroid
-      //ca-app-pub-4141006277093451/3137185376 meu banner original
           ? 'ca-app-pub-4141006277093451/3137185376'
           : 'ca-app-pub-4141006277093451/3137185376',
       listener: BannerAdListener(
@@ -131,18 +130,14 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
   }
 
   Future<void> _createDynamicLink(bool short) async {
-
     final DynamicLinkParameters parameters = DynamicLinkParameters(
       uriPrefix: 'https://pechinchar.page.link',
       link: Uri.parse('https://pechinchar.page.link/${_anuncio.id}'),
-      androidParameters: AndroidParameters(
+      androidParameters: const AndroidParameters(
         packageName: 'icm.technology.mobile.pechinchar_online',
         minimumVersion: 0,
       ),
-      dynamicLinkParametersOptions: DynamicLinkParametersOptions(
-        shortDynamicLinkPathLength: ShortDynamicLinkPathLength.short,
-      ),
-      iosParameters: IosParameters(
+      iosParameters: const IOSParameters(
         bundleId: 'com.google.FirebaseCppDynamicLinksTestApp.dev',
         minimumVersion: '0',
       ),
@@ -150,10 +145,11 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
 
     Uri url;
     if (short) {
-      final ShortDynamicLink shortLink = await parameters.buildShortLink();
+      final ShortDynamicLink shortLink =
+          await FirebaseDynamicLinks.instance.buildShortLink(parameters);
       url = shortLink.shortUrl;
     } else {
-      url = await parameters.buildUrl();
+      url = await FirebaseDynamicLinks.instance.buildLink(parameters);
     }
 
     setState(() {
@@ -163,14 +159,12 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
 
   _onShare() async {
     await _createDynamicLink(true);
-
-    await Share.share(_linkMessage, subject: ""+ _anuncio.titulo);
-
+    await Share.share(_linkMessage, subject: "" + _anuncio.titulo);
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_loadingAnchoredBanner) {
+    if (!kIsWeb && !_loadingAnchoredBanner) {
       _loadingAnchoredBanner = true;
       _createAnchoredBanner(context);
     }
@@ -183,10 +177,14 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
         actions: [
           Padding(
             padding: EdgeInsets.all(4.0),
-            child: Image.asset("imagens/logo_mao.png", width: 60),
+            child: const Icon(
+              Icons.storefront,
+              color: Colors.white,
+              size: 30,
+            ),
           )
         ],
-        backgroundColor: Color(0xFF129E09),
+        backgroundColor: corPrincipalAzul, // AppBar com o Azul da marca
       ),
       body: Stack(
         children: [
@@ -195,17 +193,18 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
               Padding(padding: EdgeInsets.only(top: 2)),
               SizedBox(
                 height: 250,
-                child: Carousel(
-                  images: _getListaImagens(),
-                  dotSize: 8,
-                  dotBgColor: Colors.transparent,
-                  dotColor: Colors.white,
-                  autoplay: false,
+                child: CarouselSlider(
+                  items: _getListaImagens(),
+                  options: CarouselOptions(
+                    height: 250,
+                    autoPlay: false,
+                    enlargeCenterPage: true,
+                    enableInfiniteScroll: false,
+                  ),
                 ),
               ),
-
               Container(
-                padding: EdgeInsets.only(top: 16, right: 16, left: 16,),
+                padding: EdgeInsets.only(top: 16, right: 16, left: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
@@ -218,27 +217,29 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
                             style: TextStyle(
                               fontSize: 32,
                               fontWeight: FontWeight.bold,
-                              // color: temaPadrao.primaryColor
                             ),
                           ),
                         ),
                         GestureDetector(
-                            onTap: (){
-                              _onShare();
-                            },
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                Image.asset("imagens/compartilhar.png", width: 20, height: 20,),
-                                Text(
-                                  "Compartilhar",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    // color: temaPadrao.primaryColor
-                                  ),
-                                )
-                              ],
-                            )
+                          onTap: () {
+                            _onShare();
+                          },
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.share,
+                                size: 20,
+                                color: corPrincipalAzul,
+                              ),
+                              Text(
+                                "Compartilhar",
+                                style: TextStyle(
+                                  fontSize: 14,
+                                ),
+                              )
+                            ],
+                          ),
                         )
                       ],
                     ),
@@ -249,9 +250,7 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
                           child: Text(
                             "${_anuncio.titulo}",
                             style: TextStyle(
-                                fontSize: 25,
-                                fontWeight: FontWeight.w400
-                            ),
+                                fontSize: 25, fontWeight: FontWeight.w400),
                           ),
                         ),
                         Column(
@@ -266,42 +265,29 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
                       padding: EdgeInsets.symmetric(vertical: 8),
                       child: Divider(),
                     ),
-
                     Text(
                       "Descrição",
-                      style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold
-                      ),
+                      style:
+                          TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
-
                     Text(
                       "${_anuncio.descricao}",
-                      style: TextStyle(
-                          fontSize: 18
-                      ),
+                      style: TextStyle(fontSize: 18),
                     ),
-
                     Padding(
                       padding: EdgeInsets.symmetric(vertical: 8),
                       child: Divider(),
                     ),
-
                     Text(
                       "Anunciante",
-                      style: TextStyle(
-                        fontSize: 14,
-                        //fontWeight: FontWeight.bold
-                      ),
+                      style: TextStyle(fontSize: 14),
                     ),
-
                     Padding(
                       padding: EdgeInsets.only(bottom: 8),
                       child: Text(
                         "${_anuncio.nome}",
                         style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.bold
-                        ),
+                            fontSize: 18, fontWeight: FontWeight.bold),
                       ),
                     ),
                     Column(
@@ -310,10 +296,9 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
                         Padding(
                           padding: EdgeInsets.only(bottom: 8),
                           child: Text(
-                            "${_anuncio.endereco + ", " + _anuncio.cidade + "-" + _anuncio.estado}",
+                            "${_anuncio.endereco}, ${_anuncio.cidade}-${_anuncio.estado}",
                             style: TextStyle(
-                                fontSize: 18, fontWeight: FontWeight.bold
-                            ),
+                                fontSize: 18, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],
@@ -332,30 +317,34 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
                                 child: Text(
                                   "${_anuncio.telefone}",
                                   style: TextStyle(
-                                      fontSize: 18, fontWeight: FontWeight.bold
-                                  ),
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
-
                             ],
                           ),
                         ),
                         Expanded(
-                            flex: 1,
-                            child: GestureDetector(
-                              onTap: (){
-                                Navigator.push(context, MaterialPageRoute(builder: (context) => PerfilAnunciante(widget.anuncio)));
-                              },
-                              child: Text("Ver perfil",
-                                style: TextStyle(
-                                    fontSize: 16,
-                                    color: Color(0xff0f530f)
-                                ),
-                              ),
-                            )
+                          flex: 1,
+                          child: GestureDetector(
+                            onTap: () {
+                              Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (context) =>
+                                          PerfilAnunciante(widget.anuncio)));
+                            },
+                            child: Text(
+                              "Ver perfil",
+                              style: TextStyle(
+                                  fontSize: 16,
+                                  color:
+                                      corDestaqueLaranja), // Cor do link de ação alterada
+                            ),
+                          ),
                         )
                       ],
-                    )
+                    ),
                   ],
                 ),
               ),
@@ -371,19 +360,16 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
                         child: Text(
                           "Ligar",
                           style: TextStyle(
-                              color: Color(0xff0f530f),
-                              fontSize: 20
-                          ),
+                              color: corDestaqueLaranja,
+                              fontSize: 20), // Botão Ligar em Laranja
                         ),
                         padding: EdgeInsets.all(16),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          //color: temaPadrao.primaryColor,
-                            borderRadius: BorderRadius.circular(30)
-                        ),
+                            borderRadius: BorderRadius.circular(30)),
                       ),
-                      onTap: (){
-                        _ligarTelefone( _anuncio.telefone );
+                      onTap: () {
+                        _ligarTelefone(_anuncio.telefone);
                       },
                     ),
                   ),
@@ -393,19 +379,16 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
                         child: Text(
                           "WhatsApp",
                           style: TextStyle(
-                              color: Color(0xff0f530f),
-                              fontSize: 20
-                          ),
+                              color: corDestaqueLaranja,
+                              fontSize: 20), // Botão WhatsApp em Laranja
                         ),
                         padding: EdgeInsets.all(16),
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
-                          //color: temaPadrao.primaryColor,
-                            borderRadius: BorderRadius.circular(30)
-                        ),
+                            borderRadius: BorderRadius.circular(30)),
                       ),
-                      onTap: (){
-                        _abrirWhatstapp( _anuncio.telefone );
+                      onTap: () {
+                        _abrirWhatstapp(_anuncio.telefone);
                       },
                     ),
                   )
@@ -415,22 +398,21 @@ class _DetalhesFavoritoState extends State<DetalhesFavorito> {
             ],
           ),
           Positioned(
-              bottom: 0.0,
-              child: Column(
-                children: [
-                  if (_anchoredBanner != null)
-                    Container(
-                      color: Colors.white,
-                      width: _anchoredBanner.size.width.toDouble(),
-                      height: _anchoredBanner.size.height.toDouble(),
-                      child: AdWidget(ad: _anchoredBanner),
-                    ),
-                ],
-              )
+            bottom: 0.0,
+            child: Column(
+              children: [
+                if (_anchoredBanner != null)
+                  Container(
+                    color: Colors.white,
+                    width: _anchoredBanner!.size.width.toDouble(),
+                    height: _anchoredBanner!.size.height.toDouble(),
+                    child: AdWidget(ad: _anchoredBanner!),
+                  ),
+              ],
+            ),
           )
         ],
       ),
     );
   }
 }
-

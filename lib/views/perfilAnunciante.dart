@@ -5,7 +5,6 @@ import 'package:pechinchar_online/adaptadores/ItemAnuncio.dart';
 import 'package:pechinchar_online/models/Anuncio.dart';
 import 'package:pechinchar_online/views/detalhesAnuncio.dart';
 
-
 class PerfilAnunciante extends StatefulWidget {
   Anuncio perfilAnunciante;
 
@@ -16,7 +15,7 @@ class PerfilAnunciante extends StatefulWidget {
 }
 
 class _PerfilAnuncianteState extends State<PerfilAnunciante> {
-  Anuncio anunciante;
+  late Anuncio anunciante;
 
   final _controller = StreamController<QuerySnapshot>.broadcast();
 
@@ -31,6 +30,7 @@ class _PerfilAnuncianteState extends State<PerfilAnunciante> {
     stream.listen((dados) {
       _controller.add(dados);
     });
+    return stream;
   }
 
   @override
@@ -59,150 +59,167 @@ class _PerfilAnuncianteState extends State<PerfilAnunciante> {
         actions: [
           Padding(
             padding: EdgeInsets.all(4.0),
-            child: Image.asset("imagens/logo_mao.png", width: 60),
+            child: const Icon(
+              Icons.storefront,
+              color: Colors.white,
+              size: 30,
+            ),
           )
         ],
         backgroundColor: Color(0xFF129E09),
       ),
       body: Stack(
         children: [
-          LayoutBuilder(
-              builder: (_, constraints){
-                return Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        const Color(0xFF46b044),
-                        const Color(0xff9cd981),
-                      ],
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                    ),
-                  ),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Container(
-                        height: constraints.maxHeight / 3.9,
-                        padding: EdgeInsets.only(top: 16, left: 16),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              const Color(0xFF46b044),
-                              const Color(0xff9cd981),
-                            ],
-                            begin: Alignment.centerLeft,
-                            end: Alignment.centerRight,
-                          ),
+          LayoutBuilder(builder: (_, constraints) {
+            return Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF46b044),
+                    const Color(0xff9cd981),
+                  ],
+                  begin: Alignment.centerLeft,
+                  end: Alignment.centerRight,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                      height: constraints.maxHeight / 3.9,
+                      padding: EdgeInsets.only(top: 16, left: 16),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            const Color(0xFF46b044),
+                            const Color(0xff9cd981),
+                          ],
+                          begin: Alignment.centerLeft,
+                          end: Alignment.centerRight,
                         ),
-                        child: Container(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(
-                                child: Text(
+                      ),
+                      child: Container(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: Text(
                                 "Anunciante",
                                 style: TextStyle(
                                   fontSize: 14,
                                 ),
                               ),
-                              ),
-                              Expanded(
-                                child: Padding(
+                            ),
+                            Expanded(
+                              child: Padding(
                                 padding: EdgeInsets.only(bottom: 4),
-                                 child: Text(
+                                child: Text(
                                   "${anunciante.nome}",
                                   style: TextStyle(
-                                      fontSize: 16, fontWeight: FontWeight.bold),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
-                              ),
-                              Expanded(
-                                child: Padding(
+                            ),
+                            Expanded(
+                              child: Padding(
                                 padding: EdgeInsets.only(bottom: 4),
-                                 child: Text(
+                                child: Text(
                                   "${anunciante.endereco + ", " + anunciante.cidade + "-" + anunciante.estado}",
                                   style: TextStyle(
-                                      fontSize: 16, fontWeight: FontWeight.bold),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
-                              ),
-                              Expanded(
-                                child: Text("Contato"),),
-                              Expanded(
-                                child: Padding(
+                            ),
+                            Expanded(
+                              child: Text("Contato"),
+                            ),
+                            Expanded(
+                              child: Padding(
                                 padding: EdgeInsets.only(bottom: 4),
-                                 child: Text(
+                                child: Text(
                                   "${anunciante.telefone}",
                                   style: TextStyle(
-                                      fontSize: 16, fontWeight: FontWeight.bold),
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
-                              ),
-                              Expanded(
-                                  child: Center(
-                                    child: Text(
+                            ),
+                            Expanded(
+                              child: Center(
+                                child: Text(
                                   "Anúncios desse Perfil",
                                   style: TextStyle(
-                                      fontSize: 20, fontWeight: FontWeight.bold),
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
-                              )
-                            ],
-                          ),
-                        )
-                      ),
-                      Container(
-                        clipBehavior: Clip.antiAlias,
-                        height: constraints.maxHeight / 1.4,
-                        decoration: new BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.only(
-                            topLeft: const Radius.circular(40.0),
-                            topRight: const Radius.circular(40.0),
-                          ),
+                            )
+                          ],
                         ),
-                        child: StreamBuilder(
-                          stream: _controller.stream,
-                          builder: (context, snapshot) {
-                            switch (snapshot.connectionState) {
-                              case ConnectionState.none:
-                              case ConnectionState.waiting:
-                                return carregandoDados;
-                                break;
-                              case ConnectionState.active:
-                              case ConnectionState.done:
-                              //Exibe mensagem de erro
-                                if (snapshot.hasError)
-                                  return Text("Erro ao carregar os dados!");
+                      )),
+                  Container(
+                    clipBehavior: Clip.antiAlias,
+                    height: constraints.maxHeight / 1.4,
+                    decoration: new BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(40.0),
+                        topRight: const Radius.circular(40.0),
+                      ),
+                    ),
+                    child: StreamBuilder(
+                      stream: _controller.stream,
+                      builder: (context, snapshot) {
+                        switch (snapshot.connectionState) {
+                          case ConnectionState.none:
+                          case ConnectionState.waiting:
+                            return carregandoDados;
+                            break;
+                          case ConnectionState.active:
+                          case ConnectionState.done:
+                            //Exibe mensagem de erro
+                            if (snapshot.hasError)
+                              return Text("Erro ao carregar os dados!");
 
-                                QuerySnapshot querySnapshot = snapshot.data;
-
-                                return ListView.builder(
-                                    itemCount: querySnapshot.docs.length,
-                                    itemBuilder: (_, indice) {
-                                      List<DocumentSnapshot> anuncios = querySnapshot.docs.toList();
-                                      DocumentSnapshot documentSnapshot = anuncios[indice];
-                                      Anuncio anuncio = Anuncio.fromDocumentSnapshot(
+                            final querySnapshot =
+                                snapshot.data as QuerySnapshot?;
+                            if (querySnapshot == null) {
+                              return carregandoDados;
+                            }
+                            return ListView.builder(
+                                itemCount: querySnapshot.docs.length,
+                                itemBuilder: (_, indice) {
+                                  List<DocumentSnapshot> anuncios =
+                                      querySnapshot.docs.toList();
+                                  DocumentSnapshot documentSnapshot =
+                                      anuncios[indice];
+                                  Anuncio anuncio =
+                                      Anuncio.fromDocumentSnapshot(
                                           documentSnapshot);
 
-                                      return ItemAnuncio(
-                                        anuncio: anuncio,
-                                        onTapItem: () {
-                                          Navigator.push(context, MaterialPageRoute(builder: (context) => DetalhesAnuncio(anuncio, false)));
-                                        },
-                                      );
-                                    });
-                            }
-                            return Container();
-                          },
-                        ),
-                      )
-                    ],
-                  ),
-                );
-              }
-              )
+                                  return ItemAnuncio(
+                                    anuncio: anuncio,
+                                    onTapItem: () {
+                                      Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                              builder: (context) =>
+                                                  DetalhesAnuncio(
+                                                      anuncio, false)));
+                                    },
+                                  );
+                                });
+                        }
+                        return Container();
+                      },
+                    ),
+                  )
+                ],
+              ),
+            );
+          })
         ],
       ),
     );
@@ -217,7 +234,7 @@ Scaffold(
         actions: [
           Padding(
             padding: EdgeInsets.all(4.0),
-            child: Image.asset("imagens/logo_mao.png", width: 60),
+            child: Icon(Icons.storefront, color: Colors.white, size: 30),
           )
         ],
         backgroundColor: Color(0xFF129E09),

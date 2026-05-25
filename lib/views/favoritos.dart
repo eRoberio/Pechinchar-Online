@@ -1,18 +1,18 @@
-import 'dart:async';
-import 'dart:io';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:fluttertoast/fluttertoast.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:pechinchar_online/adaptadores/ItemFavorito.dart';
-import 'package:pechinchar_online/models/Anuncio.dart';
+import 'dart:async';
+import '../models/Anuncio.dart';
 
 class Favoritos extends StatefulWidget {
-  const Favoritos({Key key}) : super(key: key);
+  const Favoritos({Key? key}) : super(key: key);
 
   @override
-  _FavoritosState createState() => _FavoritosState();
+  State<Favoritos> createState() => _FavoritosState();
 }
 
 class _FavoritosState extends State<Favoritos> {
@@ -22,15 +22,19 @@ class _FavoritosState extends State<Favoritos> {
     nonPersonalizedAds: true,
   );
 
-  BannerAd _anchoredBanner;
+  BannerAd? _anchoredBanner;
   bool _loadingAnchoredBanner = false;
-
-  FToast fToast;
+  late FToast fToast;
   final _controler = StreamController<QuerySnapshot>.broadcast();
 
+  // Cores da nova identidade visual (Acomodeme)
+  final Color corPrincipalAzul = const Color(0xFF0B1C4B);
+  final Color corDestaqueLaranja = const Color(0xFFFF8C00);
+
   Future<Stream<QuerySnapshot>> _adicionarListenerAnuncios() async {
-    User user = FirebaseAuth.instance.currentUser;
-    String idUsuario = user.uid;
+    User? user = FirebaseAuth.instance.currentUser;
+    String? idUsuario = user?.uid;
+    if (idUsuario == null) throw Exception('Usuário não autenticado');
 
     FirebaseFirestore db = FirebaseFirestore.instance;
     Stream<QuerySnapshot> stream = db
@@ -42,30 +46,29 @@ class _FavoritosState extends State<Favoritos> {
     stream.listen((dados) {
       _controler.add(dados);
     });
+    return stream;
   }
 
-  //metodo que chama a classe deleta conta
   _alertaDeletar(Anuncio anuncio) {
-    // set up the buttons
     Widget cancelButton = TextButton(
-      child: Text("Sim", style: TextStyle(color: Colors.blue),),
+      child: Text("Sim",
+          style: TextStyle(color: corPrincipalAzul)), // Cor do botão atualizada
       onPressed: () {
         setState(() {
           _removerPedido(anuncio);
           Navigator.of(context).pop();
-
         });
       },
     );
 
     Widget continueButton = TextButton(
-      child: Text("Não", style: TextStyle(color: Colors.blue)),
+      child: Text("Não",
+          style: TextStyle(color: corPrincipalAzul)), // Cor do botão atualizada
       onPressed: () {
         Navigator.of(context).pop();
       },
     );
 
-    // set up the AlertDialog
     AlertDialog alert = AlertDialog(
       title: Text("Atenção"),
       content: Text("Tem certeza que deseja retirar esse anúncio de favorito?"),
@@ -75,7 +78,6 @@ class _FavoritosState extends State<Favoritos> {
       ],
     );
 
-    // show the dialog
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -85,21 +87,23 @@ class _FavoritosState extends State<Favoritos> {
   }
 
   _removerPedido(Anuncio anuncio) async {
-    User user = FirebaseAuth.instance.currentUser;
-    String idUsuario = user.uid;
+    User? user = FirebaseAuth.instance.currentUser;
+    String? idUsuario = user?.uid;
+    if (idUsuario == null) return;
 
     FirebaseFirestore db = FirebaseFirestore.instance;
-    db.collection("meus_favoritos")
-        .doc( idUsuario )
+    db
+        .collection("meus_favoritos")
+        .doc(idUsuario)
         .collection("favoritos")
-        .doc( anuncio.id )
-        .delete().then((_){
-
+        .doc(anuncio.id)
+        .delete()
+        .then((_) {
       Widget toast = Container(
         padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(25.0),
-          color: Colors.black45,
+          color: corPrincipalAzul.withOpacity(0.9), // Cor do Toast atualizada
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -120,7 +124,6 @@ class _FavoritosState extends State<Favoritos> {
         toastDuration: Duration(seconds: 2),
       );
     });
-
   }
 
   mensagem() {
@@ -128,7 +131,7 @@ class _FavoritosState extends State<Favoritos> {
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(25.0),
-        color: Colors.black45,
+        color: corPrincipalAzul.withOpacity(0.9), // Cor do Toast atualizada
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -157,16 +160,18 @@ class _FavoritosState extends State<Favoritos> {
     fToast = FToast();
     fToast.init(context);
   }
+
   @override
   void dispose() {
     super.dispose();
     _anchoredBanner?.dispose();
   }
 
-  //responsavel por exibir o banner de anúncios
   Future<void> _createAnchoredBanner(BuildContext context) async {
-    final AnchoredAdaptiveBannerAdSize size =
-    await AdSize.getAnchoredAdaptiveBannerAdSize(
+    if (kIsWeb) return;
+
+    final AnchoredAdaptiveBannerAdSize? size =
+        await AdSize.getAnchoredAdaptiveBannerAdSize(
       Orientation.portrait,
       MediaQuery.of(context).size.width.truncate(),
     );
@@ -179,10 +184,7 @@ class _FavoritosState extends State<Favoritos> {
     final BannerAd banner = BannerAd(
       size: size,
       request: request,
-      adUnitId: Platform.isAndroid
-      //ca-app-pub-4141006277093451/3137185376 meu banner original
-          ? 'ca-app-pub-4141006277093451/3137185376'
-          : 'ca-app-pub-4141006277093451/3137185376',
+      adUnitId: 'ca-app-pub-4141006277093451/3137185376',
       listener: BannerAdListener(
         onAdLoaded: (Ad ad) {
           print('$BannerAd loaded.');
@@ -203,7 +205,7 @@ class _FavoritosState extends State<Favoritos> {
 
   @override
   Widget build(BuildContext context) {
-    if (!_loadingAnchoredBanner) {
+    if (!kIsWeb && !_loadingAnchoredBanner) {
       _loadingAnchoredBanner = true;
       _createAnchoredBanner(context);
     }
@@ -211,7 +213,7 @@ class _FavoritosState extends State<Favoritos> {
       child: Column(
         children: <Widget>[
           CircularProgressIndicator(
-            color: Color(0xff0f530f),
+            color: corDestaqueLaranja, // Cor do loading alterada para laranja
           ),
           Text("Carregando anúncios"),
         ],
@@ -226,10 +228,14 @@ class _FavoritosState extends State<Favoritos> {
         actions: [
           Padding(
             padding: EdgeInsets.all(8),
-            child: Image.asset("imagens/icone_coracao_branco.png", height: 30, width: 30,)
+            child: const Icon(
+              Icons.favorite_border,
+              color: Colors.white,
+              size: 30,
+            ),
           )
         ],
-        backgroundColor: Color(0xFF129E09),
+        backgroundColor: corPrincipalAzul, // Cor da AppBar atualizada
       ),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -247,43 +253,46 @@ class _FavoritosState extends State<Favoritos> {
                             case ConnectionState.none:
                             case ConnectionState.waiting:
                               return carregandoDados;
-                              break;
                             case ConnectionState.active:
                             case ConnectionState.done:
-                              QuerySnapshot querySnapshot = snapshot.data;
-
-                              if (querySnapshot.docs.length == 0) {
+                              final querySnapshot =
+                                  snapshot.data as QuerySnapshot?;
+                              if (querySnapshot == null ||
+                                  querySnapshot.docs.isEmpty) {
                                 return Container(
                                   padding: EdgeInsets.all(25),
                                   child: Text(
                                     "Nada no favoritos! :( ",
                                     style: TextStyle(
-                                        fontSize: 20, fontWeight: FontWeight.bold),
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.bold),
                                   ),
                                 );
                               }
 
                               return Expanded(
                                 child: ListView.builder(
-                                    itemCount: querySnapshot.docs.length,
-                                    itemBuilder: (_, indice) {
-                                      List<DocumentSnapshot> anuncios =
-                                      querySnapshot.docs.toList();
-                                      DocumentSnapshot documentSnapshot =
-                                      anuncios[indice];
-                                      Anuncio anuncio = Anuncio.fromDocumentSnapshot(
-                                          documentSnapshot);
+                                  itemCount: querySnapshot.docs.length,
+                                  itemBuilder: (_, indice) {
+                                    List<DocumentSnapshot> anuncios =
+                                        querySnapshot.docs.toList();
+                                    DocumentSnapshot documentSnapshot =
+                                        anuncios[indice];
+                                    Anuncio anuncio =
+                                        Anuncio.fromDocumentSnapshot(
+                                            documentSnapshot);
 
-                                      return ItemFavorito(
-                                        anuncio: anuncio,
-                                        onTapItem: () {
-                                          mensagem();
-                                        },
-                                        onPressedRemover: (){
-                                          _alertaDeletar(anuncio);
-                                        },
-                                      );
-                                    }),
+                                    return ItemFavorito(
+                                      anuncio: anuncio,
+                                      onTapItem: () {
+                                        mensagem();
+                                      },
+                                      onPressedRemover: () {
+                                        _alertaDeletar(anuncio);
+                                      },
+                                    );
+                                  },
+                                ),
                               );
                           }
                           return Container();
@@ -292,7 +301,6 @@ class _FavoritosState extends State<Favoritos> {
                     ],
                   ),
                 ),
-
               ],
             ),
           ),
@@ -301,14 +309,14 @@ class _FavoritosState extends State<Favoritos> {
               if (_anchoredBanner != null)
                 Container(
                   color: Colors.white,
-                  width: _anchoredBanner.size.width.toDouble(),
-                  height: _anchoredBanner.size.height.toDouble(),
-                  child: AdWidget(ad: _anchoredBanner),
+                  width: _anchoredBanner!.size.width.toDouble(),
+                  height: _anchoredBanner!.size.height.toDouble(),
+                  child: AdWidget(ad: _anchoredBanner!),
                 ),
             ],
           )
         ],
-      )
+      ),
     );
   }
 }

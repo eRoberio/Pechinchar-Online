@@ -1,40 +1,64 @@
 import 'package:flutter/material.dart';
 
 class InputDropdownButtonCustomizadoAnuncios extends StatelessWidget {
-
-  final String value;
+  final String? initialValue;
   final String hint;
   final List<DropdownMenuItem<String>> items;
-  final onChanged;
-  final icon;
-  final Function(String) validator;
+  final ValueChanged<String?>? onChanged;
+  final Widget icon;
+  final FormFieldValidator<String>? validator;
 
-  const InputDropdownButtonCustomizadoAnuncios({@required
-  this.value,
-    this.hint,
-    this.items,
+  const InputDropdownButtonCustomizadoAnuncios({
+    required this.initialValue,
+    required this.hint,
+    required this.items,
     this.onChanged,
     this.icon = const Icon(Icons.account_balance_outlined),
-    this.validator,});
+    required this.validator,
+    Key? key,
+  }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      child: DropdownButtonFormField(
-          isExpanded: true,
-          decoration: InputDecoration(
-              labelText: this.hint,
-              contentPadding:
-              EdgeInsets.fromLTRB(32, 16, 2, 16),
-              fillColor: Colors.transparent,
-              filled: true,
-              border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(25))),
-          value: this.value,
-          validator: this.validator,
-          hint: Text(this.hint),
-          items: items,
-          onChanged: this.onChanged
+      child: DropdownButtonFormField<String>(
+        isExpanded: true,
+        dropdownColor:
+            const Color(0xFF0B1C4B), // Fundo do menu que se abre (Azul Naval)
+        style: const TextStyle(
+            color: Colors.white, fontSize: 20), // Cor do item selecionado
+        icon: const Icon(Icons.arrow_drop_down,
+            color: Colors.white), // Cor da setinha
+        decoration: InputDecoration(
+          labelText: hint,
+          labelStyle: const TextStyle(color: Colors.white70), // Cor do Label
+          // Mantive o contentPadding original do seu código que não usava o prefixIcon aqui
+          contentPadding: const EdgeInsets.fromLTRB(32, 16, 2, 16),
+          fillColor: Colors.transparent,
+          filled: true,
+
+          // Borda padrão
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(25),
+            borderSide: const BorderSide(color: Colors.white54),
+          ),
+
+          // Borda Laranja quando focado
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(25),
+            borderSide: const BorderSide(color: Color(0xFFFF8C00), width: 2.0),
+          ),
+
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(25),
+          ),
+        ),
+        initialValue: initialValue,
+        validator: validator,
+        hint: Text(hint,
+            style: const TextStyle(color: Colors.white54)), // Cor da dica
+        items: items,
+        onChanged: onChanged,
       ),
     );
   }

@@ -17,13 +17,16 @@ class IbgeApi {
   ];
 
   Future<List<IbgeApiModel>> getSearchEstado(String searchEstado) async {
-    String sigleEstado;
-    for(int i = 0; i < _listaEstados.length; i++){
-      if(_listaEstados[i] == searchEstado){
+    String? sigleEstado;
+    for (int i = 0; i < _listaEstados.length; i++) {
+      if (_listaEstados[i] == searchEstado) {
         sigleEstado = valorEstados[i];
+        break;
       }
     }
-
+    if (sigleEstado == null) {
+      throw Exception('Estado não encontrado: $searchEstado');
+    }
 
     final response = await Dio().get(
         "https://servicodados.ibge.gov.br/api/v1/localidades/estados/${sigleEstado.normaLize()}/municipios");
@@ -31,6 +34,8 @@ class IbgeApi {
       final list =
           (response.data as List).map((e) => IbgeApiModel.fromMap(e)).toList();
       return list;
-    } else {}
+    } else {
+      throw Exception('Erro ao buscar municípios do estado: $searchEstado');
+    }
   }
 }
